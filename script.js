@@ -15,13 +15,24 @@ let selectedRow = -1;
 let selectedCol = -1;
 let isProcessing = false;
 
-// --- Создание доски ---
+// --- Создание доски БЕЗ совпадений ---
 function createBoard() {
     const newBoard = [];
     for (let r = 0; r < ROWS; r++) {
         newBoard[r] = [];
         for (let c = 0; c < COLS; c++) {
-            newBoard[r][c] = Math.floor(Math.random() * EMOJIS.length);
+            let candy;
+            let attempts = 0;
+            do {
+                candy = Math.floor(Math.random() * EMOJIS.length);
+                attempts++;
+                // Проверяем, не создаст ли это совпадение
+                const leftMatch = (c >= 2 && newBoard[r][c-1] === candy && newBoard[r][c-2] === candy);
+                const upMatch = (r >= 2 && newBoard[r-1][c] === candy && newBoard[r-2][c] === candy);
+                if (!leftMatch && !upMatch) break;
+                if (attempts > 50) break;
+            } while (true);
+            newBoard[r][c] = candy;
         }
     }
     return newBoard;
@@ -50,6 +61,7 @@ function findMatches() {
                     }
                 }
             }
+            c += len - 1;
         }
     }
 
@@ -71,6 +83,7 @@ function findMatches() {
                     }
                 }
             }
+            r += len - 1;
         }
     }
 
@@ -87,7 +100,7 @@ function removeMatches() {
     const matches = findMatches();
     if (matches.length === 0) return false;
 
-    console.log('Найдено совпадений:', matches.length); // Отладка
+    console.log('Удаляем совпадений:', matches.length);
 
     // 1. Помечаем ячейки как пустые
     for (let cell of matches) {
@@ -129,7 +142,7 @@ function processBoard() {
     let anyRemoved = false;
 
     // Удаляем совпадения, пока они есть
-    let maxIterations = 50; // защита от бесконечного цикла
+    let maxIterations = 50;
     while (maxIterations > 0 && removeMatches()) {
         anyRemoved = true;
         drawBoard();
@@ -145,10 +158,6 @@ function processBoard() {
             setTimeout(() => {
                 alert('Нет доступных ходов! Перемешиваем...');
                 board = createBoard();
-                // Убираем возможные начальные совпадения
-                while (hasMatches()) {
-                    board = createBoard();
-                }
                 selectedRow = -1;
                 selectedCol = -1;
                 drawBoard();
@@ -157,23 +166,39 @@ function processBoard() {
     }
 }
 
+// --- Проверка, образуются ли совпадения ПОСЛЕ обмена ---
+function wouldMatchAfterSwap(r1, c1, r2, c2) {
+    // Меняем
+    const temp = board[r1][c1];
+    board[r1][c1] = board[r2][c2];
+    board[r2][c2] = temp;
+    
+    // Проверяем совпадения
+    const has = hasMatches();
+    
+    // Меняем обратно
+    const tempBack = board[r1][c1];
+    board[r1][c1] = board[r2][c2];
+    board[r2][c2] = tempBack;
+    
+    return has;
+}
+
 // --- Проверка возможных ходов ---
 function hasValidMoves() {
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
             // Вправо
             if (c < COLS - 1) {
-                swap(r, c, r, c + 1);
-                const has = hasMatches();
-                swap(r, c, r, c + 1);
-                if (has) return true;
+                if (wouldMatchAfterSwap(r, c, r, c + 1)) {
+                    return true;
+                }
             }
             // Вниз
             if (r < ROWS - 1) {
-                swap(r, c, r + 1, c);
-                const has = hasMatches();
-                swap(r, c, r + 1, c);
-                if (has) return true;
+                if (wouldMatchAfterSwap(r, c, r + 1, c)) {
+                    return true;
+                }
             }
         }
     }
@@ -203,7 +228,7 @@ canvas.addEventListener('click', function(e) {
     
     if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return;
 
-    console.log(`Клик: row=${row}, col=${col}`); // Отладка
+    console.log(`Клик: row=${row}, col=${col}`);
 
     // Если ничего не выбрано
     if (selectedRow === -1) {
@@ -229,19 +254,17 @@ canvas.addEventListener('click', function(e) {
         const r1 = selectedRow, c1 = selectedCol;
         const r2 = row, c2 = col;
         
-        // Меняем
-        swap(r1, c1, r2, c2);
-        
-        // Проверяем
-        if (hasMatches()) {
+        // Проверяем, будет ли совпадение после обмена
+        if (wouldMatchAfterSwap(r1, c1, r2, c2)) {
             console.log('Валидный ход!');
+            // Меняем местами (теперь уже насовсем)
+            swap(r1, c1, r2, c2);
             selectedRow = -1;
             selectedCol = -1;
             drawBoard();
             processBoard();
         } else {
-            console.log('Невалидный ход, возвращаем обратно');
-            swap(r1, c1, r2, c2);
+            console.log('Невалидный ход');
             selectedRow = -1;
             selectedCol = -1;
             drawBoard();
@@ -318,12 +341,6 @@ function updateScore() {
 // --- Новая игра ---
 document.getElementById('resetBtn').addEventListener('click', function() {
     board = createBoard();
-    // Убираем начальные совпадения
-    let attempts = 0;
-    while (hasMatches() && attempts < 100) {
-        board = createBoard();
-        attempts++;
-    }
     score = 0;
     selectedRow = -1;
     selectedCol = -1;
@@ -335,11 +352,6 @@ document.getElementById('resetBtn').addEventListener('click', function() {
 
 // --- Запуск ---
 board = createBoard();
-// Убираем начальные совпадения
-let attempts = 0;
-while (hasMatches() && attempts < 100) {
-    board = createBoard();
-    attempts++;
-}
 drawBoard();
 console.log('Игра запущена!');
+console.log('Начальных совпадений:', findMatches().length);

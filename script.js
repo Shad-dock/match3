@@ -8,7 +8,7 @@ const TILE_SIZE = 60;
 canvas.width = COLS * TILE_SIZE;
 canvas.height = ROWS * TILE_SIZE;
 
-const COLORS = ['🍎', '🍊', '🍇', '🍒', '🍉']; // 5 видов
+const COLORS = ['🍎', '🍊', '🍇', '🍒', '🍉'];
 let board = [];
 let score = 0;
 let selectedRow = -1;
@@ -38,7 +38,7 @@ function initBoard() {
 
 // --- Поиск совпадений ---
 function findMatches() {
-    const matches = new Set(); // используем Set, чтобы не дублировать ячейки
+    const matches = new Set();
 
     // Горизонтальные (3+)
     for (let r = 0; r < ROWS; r++) {
@@ -115,14 +115,78 @@ function clearAndDrop() {
 function processBoard() {
     isProcessing = true;
     let anyCleared = false;
-    while (true) {
+    
+    // Используем setTimeout для визуального эффекта (чтобы было видно падение)
+    function step() {
         const cleared = clearAndDrop();
-        if (!cleared) break;
-        anyCleared = true;
+        if (cleared) {
+            anyCleared = true;
+            drawBoard();
+            setTimeout(step, 100); // небольшая задержка для анимации
+        } else {
+            isProcessing = false;
+            drawBoard();
+            if (anyCleared) {
+                // После очистки проверяем, нет ли новых возможных ходов
+                if (!hasValidMoves()) {
+                    setTimeout(() => {
+                        alert('Нет доступных ходов! Поле перемешивается...');
+                        shuffleBoard();
+                        drawBoard();
+                    }, 200);
+                }
+            }
+        }
     }
-    isProcessing = false;
-    drawBoard();
-    return anyCleared;
+    
+    step();
+}
+
+// --- Проверка, есть ли возможные ходы ---
+function hasValidMoves() {
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            // Проверяем соседей справа и снизу
+            if (c < COLS - 1) {
+                swap(r, c, r, c + 1);
+                if (findMatches().length > 0) {
+                    swap(r, c, r, c + 1);
+                    return true;
+                }
+                swap(r, c, r, c + 1);
+            }
+            if (r < ROWS - 1) {
+                swap(r, c, r + 1, c);
+                if (findMatches().length > 0) {
+                    swap(r, c, r + 1, c);
+                    return true;
+                }
+                swap(r, c, r + 1, c);
+            }
+        }
+    }
+    return false;
+}
+
+// --- Перемешивание поля ---
+function shuffleBoard() {
+    // Просто перезаполняем поле случайными значениями
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            board[r][c] = Math.floor(Math.random() * COLORS.length);
+        }
+    }
+    // Убираем совпадения
+    while (findMatches().length > 0) {
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                board[r][c] = Math.floor(Math.random() * COLORS.length);
+            }
+        }
+    }
+    // Сбрасываем выделение
+    selectedRow = -1;
+    selectedCol = -1;
 }
 
 // --- Обмен двух клеток ---
@@ -136,7 +200,7 @@ function swap(r1, c1, r2, c2) {
 function hasValidSwap(r1, c1, r2, c2) {
     swap(r1, c1, r2, c2);
     const matches = findMatches();
-    swap(r1, c1, r2, c2); // меняем обратно
+    swap(r1, c1, r2, c2);
     return matches.length > 0;
 }
 
@@ -176,19 +240,29 @@ canvas.addEventListener('click', (e) => {
     const dc = Math.abs(selectedCol - col);
     if ((dr === 1 && dc === 0) || (dr === 0 && dc === 1)) {
         // Пробуем обменять
-        swap(selectedRow, selectedCol, row, col);
-        if (hasValidSwap(selectedRow, selectedCol, row, col)) {
+        const r1 = selectedRow, c1 = selectedCol;
+        const r2 = row, c2 = col;
+        
+        swap(r1, c1, r2, c2);
+        if (hasValidSwap(r1, c1, r2, c2)) {
             // Обмен валидный — оставляем и обрабатываем
+            selectedRow = -1;
+            selectedCol = -1;
+            drawBoard();
             processBoard();
         } else {
             // Невалидный — меняем обратно
-            swap(selectedRow, selectedCol, row, col);
+            swap(r1, c1, r2, c2);
+            selectedRow = -1;
+            selectedCol = -1;
+            drawBoard();
         }
+    } else {
+        // Если кликнули на не соседнюю клетку — просто перевыбираем
+        selectedRow = row;
+        selectedCol = col;
+        drawBoard();
     }
-
-    selectedRow = -1;
-    selectedCol = -1;
-    drawBoard();
 });
 
 // --- Отрисовка ---
@@ -202,9 +276,15 @@ function drawBoard() {
             const val = board[r][c];
 
             // Рисуем фон ячейки
-            ctx.fillStyle = (selectedRow === r && selectedCol === c) ? '#63547c' : '#4a3a5c';
-            ctx.shadowColor = 'rgba(0,0,0,0.3)';
-            ctx.shadowBlur = 8;
+            if (selectedRow === r && selectedCol === c) {
+                ctx.fillStyle = '#7b5ea7';
+                ctx.shadowColor = '#b392d0';
+                ctx.shadowBlur = 20;
+            } else {
+                ctx.fillStyle = '#4a3a5c';
+                ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                ctx.shadowBlur = 8;
+            }
             ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
             ctx.shadowBlur = 0;
 

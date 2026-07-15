@@ -16,12 +16,11 @@ let selectedCol = -1;
 let isProcessing = false;
 
 // --- Анимационные переменные ---
-let animating = false;
-let animationQueue = [];
-let matchHighlights = []; // подсвеченные совпадения
-let fallingCells = []; // падающие клетки {row, col, offset}
+let particles = [];
+let matchCells = [];
+let dropAnimations = [];
 
-// --- Создание доски БЕЗ совпадений ---
+// --- Создание доски ---
 function createBoard() {
     const newBoard = [];
     for (let r = 0; r < ROWS; r++) {
@@ -93,7 +92,6 @@ function hasMatches() {
     return findMatches().length > 0;
 }
 
-// --- Проверка, образуются ли совпадения ПОСЛЕ обмена ---
 function wouldMatchAfterSwap(r1, c1, r2, c2) {
     const temp = board[r1][c1];
     board[r1][c1] = board[r2][c2];
@@ -121,26 +119,55 @@ function swap(r1, c1, r2, c2) {
     board[r2][c2] = temp;
 }
 
-// --- Анимированное удаление с падением ---
+// --- Создание частиц ---
+function createParticles(matches) {
+    const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6bff'];
+    for (let cell of matches) {
+        const x = cell.c * TILE_SIZE + TILE_SIZE/2;
+        const y = cell.r * TILE_SIZE + TILE_SIZE/2;
+        for (let i = 0; i < 8; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 2 + Math.random() * 4;
+            particles.push({
+                x: x,
+                y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 2,
+                life: 1,
+                size: 4 + Math.random() * 6,
+                color: colors[Math.floor(Math.random() * colors.length)]
+            });
+        }
+    }
+}
+
+// --- Обновление частиц ---
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.15; // гравитация
+        p.life -= 0.02;
+        if (p.life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+}
+
+// --- Анимированная обработка ---
 function processBoardWithAnimation() {
-    if (isProcessing || animating) return;
+    if (isProcessing) return;
     isProcessing = true;
-    animating = true;
 
     function step() {
         const matches = findMatches();
         
         if (matches.length === 0) {
-            // Закончили обработку
-            animating = false;
             isProcessing = false;
-            matchHighlights = [];
-            fallingCells = [];
-            drawBoard();
-            
             if (!hasValidMoves()) {
                 setTimeout(() => {
-                    alert('Нет доступных ходов! Перемешиваем...');
+                    alert('Нет ходов! Перемешиваем...');
                     board = createBoard();
                     selectedRow = -1;
                     selectedCol = -1;
@@ -150,30 +177,29 @@ function processBoardWithAnimation() {
             return;
         }
 
-        // 1. Показываем совпадения (подсветка)
-        matchHighlights = matches;
+        console.log('Найдено совпадений:', matches.length);
+        
+        // 1. Сохраняем совпадения для отрисовки
+        matchCells = matches;
+        createParticles(matches);
         drawBoard();
 
-        // 2. Через 300ms удаляем и запускаем падение
+        // 2. Через 400ms удаляем и запускаем падение
         setTimeout(() => {
             // Удаляем совпадения
             for (let cell of matches) {
                 board[cell.r][cell.c] = -1;
             }
-            matchHighlights = [];
-            
-            // Сохраняем, что было до падения
-            const beforeDrop = board.map(row => [...row]);
-            
-            // Применяем гравитацию
-            const dropInfo = [];
+            matchCells = [];
+
+            // Применяем гравитацию с анимацией
+            const dropData = [];
             for (let c = 0; c < COLS; c++) {
                 let emptyRow = ROWS - 1;
-                let dropCount = 0;
                 for (let r = ROWS - 1; r >= 0; r--) {
                     if (board[r][c] !== -1) {
                         if (emptyRow !== r) {
-                            dropInfo.push({
+                            dropData.push({
                                 fromRow: r,
                                 toRow: emptyRow,
                                 col: c,
@@ -181,16 +207,15 @@ function processBoardWithAnimation() {
                             });
                             board[emptyRow][c] = board[r][c];
                             board[r][c] = -1;
-                            dropCount++;
                         }
                         emptyRow--;
                     }
                 }
-                // Заполняем пустоты новыми
+                // Новые клетки
                 for (let r = emptyRow; r >= 0; r--) {
                     const newVal = Math.floor(Math.random() * EMOJIS.length);
-                    dropInfo.push({
-                        fromRow: r - 1,
+                    dropData.push({
+                        fromRow: -1,
                         toRow: r,
                         col: c,
                         value: newVal,
@@ -205,60 +230,154 @@ function processBoardWithAnimation() {
             updateScore();
 
             // Анимируем падение
-            animateDrop(dropInfo, step);
+            dropAnimations = dropData.map(d => ({
+                ...d,
+                progress: 0,
+                startY: d.fromRow === -1 ? -TILE_SIZE : d.fromRow * TILE_SIZE,
+                endY: d.toRow * TILE_SIZE
+            }));
 
-        }, 300);
+            // Запускаем анимацию падения
+            let startTime = Date.now();
+            const duration = 400;
+
+            function animateDrop() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = progress * progress * (3 - 2 * progress);
+
+                // Обновляем прогресс для каждой падающей клетки
+                for (let d of dropAnimations) {
+                    d.progress = eased;
+                }
+
+                drawBoard();
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateDrop);
+                } else {
+                    dropAnimations = [];
+                    drawBoard();
+                    // Рекурсивно проверяем новые совпадения
+                    setTimeout(() => step(), 100);
+                }
+            }
+
+            animateDrop();
+
+        }, 400);
     }
 
     step();
 }
 
-// --- Анимация падения ---
-function animateDrop(dropInfo, callback) {
-    let progress = 0;
-    const duration = 300; // мс
-    const startTime = Date.now();
-
-    // Сохраняем начальные позиции для анимации
-    const animations = dropInfo.map(info => ({
-        ...info,
-        startRow: info.fromRow,
-        currentOffset: 0
-    }));
-
-    function animateStep() {
-        const elapsed = Date.now() - startTime;
-        progress = Math.min(elapsed / duration, 1);
-        
-        // Плавная кривая (ease-in)
-        const eased = progress * progress * (3 - 2 * progress);
-        
-        // Обновляем падающие клетки для отрисовки
-        fallingCells = animations.map(anim => ({
-            col: anim.col,
-            toRow: anim.toRow,
-            fromRow: anim.fromRow,
-            value: anim.value,
-            isNew: anim.isNew || false,
-            offset: (1 - eased) * TILE_SIZE * (anim.toRow - anim.fromRow)
-        }));
-
-        drawBoard();
-
-        if (progress < 1) {
-            requestAnimationFrame(animateStep);
-        } else {
-            fallingCells = [];
-            callback();
+// --- Отрисовка ---
+function drawBoard() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Рисуем клетки
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            const x = c * TILE_SIZE;
+            const y = r * TILE_SIZE;
+            let candy = board[r][c];
+            let drawY = y;
+            
+            // Проверяем, падает ли клетка
+            const drop = dropAnimations.find(d => d.toRow === r && d.col === c);
+            if (drop && drop.progress < 1) {
+                const currentY = drop.startY + (drop.endY - drop.startY) * drop.progress;
+                drawY = currentY;
+                candy = drop.value;
+            }
+            
+            // Подсветка совпадений
+            const isMatch = matchCells.some(m => m.r === r && m.c === c);
+            
+            // Фон клетки
+            let fillColor = '#4a3a5c';
+            let shadowColor = 'rgba(0,0,0,0.3)';
+            let shadowBlur = 8;
+            
+            if (selectedRow === r && selectedCol === c) {
+                fillColor = '#8b6fb0';
+                shadowColor = '#b392d0';
+                shadowBlur = 25;
+            } else if (isMatch) {
+                // Яркая подсветка для совпадений
+                const pulse = Math.sin(Date.now() / 100) * 0.3 + 0.7;
+                fillColor = `rgba(255, 215, 0, ${pulse})`;
+                shadowColor = '#ffd700';
+                shadowBlur = 40;
+            }
+            
+            ctx.fillStyle = fillColor;
+            ctx.shadowColor = shadowColor;
+            ctx.shadowBlur = shadowBlur;
+            
+            ctx.beginPath();
+            ctx.roundRect(x + 2, drawY + 2, TILE_SIZE - 4, TILE_SIZE - 4, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // Рисуем эмодзи
+            if (candy !== -1 && candy < EMOJIS.length) {
+                const size = isMatch ? TILE_SIZE * 0.7 : TILE_SIZE * 0.6;
+                ctx.font = `${size}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 8;
+                ctx.fillText(EMOJIS[candy], x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 2);
+                ctx.shadowBlur = 0;
+            }
         }
     }
+    
+    // Рисуем частицы поверх всего
+    for (let p of particles) {
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+    
+    // Обновляем частицы
+    if (particles.length > 0) {
+        updateParticles();
+        requestAnimationFrame(drawBoard);
+    }
+}
 
-    animateStep();
+// --- roundRect ---
+CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    if (w < 2 * r) r = w / 2;
+    if (h < 2 * r) r = h / 2;
+    this.moveTo(x + r, y);
+    this.lineTo(x + w - r, y);
+    this.quadraticCurveTo(x + w, y, x + w, y + r);
+    this.lineTo(x + w, y + h - r);
+    this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    this.lineTo(x + r, y + h);
+    this.quadraticCurveTo(x, y + h, x, y + h - r);
+    this.lineTo(x, y + r);
+    this.quadraticCurveTo(x, y, x + r, y);
+    return this;
+};
+
+// --- Обновление счёта ---
+function updateScore() {
+    scoreSpan.textContent = score;
 }
 
 // --- Клик ---
 canvas.addEventListener('click', function(e) {
-    if (isProcessing || animating) return;
+    if (isProcessing) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -308,92 +427,6 @@ canvas.addEventListener('click', function(e) {
     }
 });
 
-// --- Отрисовка с анимацией ---
-function drawBoard() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Сначала рисуем все клетки
-    for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-            const x = c * TILE_SIZE;
-            const y = r * TILE_SIZE;
-            let candy = board[r][c];
-            
-            // Проверяем, не падает ли тут клетка
-            let isFalling = false;
-            let fallOffset = 0;
-            for (let fall of fallingCells) {
-                if (fall.toRow === r && fall.col === c) {
-                    isFalling = true;
-                    fallOffset = fall.offset;
-                    candy = fall.value;
-                    break;
-                }
-            }
-            
-            // Проверяем, подсвечена ли клетка как совпадение
-            const isHighlighted = matchHighlights.some(m => m.r === r && m.c === c);
-            
-            // Рисуем фон
-            let fillColor = '#4a3a5c';
-            let shadowColor = 'rgba(0,0,0,0.3)';
-            let shadowBlur = 8;
-            
-            if (selectedRow === r && selectedCol === c) {
-                fillColor = '#8b6fb0';
-                shadowColor = '#b392d0';
-                shadowBlur = 25;
-            } else if (isHighlighted) {
-                fillColor = '#ffd966';
-                shadowColor = '#ffb347';
-                shadowBlur = 30;
-            }
-            
-            ctx.fillStyle = fillColor;
-            ctx.shadowColor = shadowColor;
-            ctx.shadowBlur = shadowBlur;
-            
-            const drawY = y + (isFalling ? fallOffset : 0);
-            ctx.beginPath();
-            ctx.roundRect(x + 2, drawY + 2, TILE_SIZE - 4, TILE_SIZE - 4, 10);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            
-            // Рисуем эмодзи
-            if (candy !== -1 && candy < EMOJIS.length) {
-                ctx.font = `${TILE_SIZE * 0.6}px Arial`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.shadowColor = 'rgba(0,0,0,0.5)';
-                ctx.shadowBlur = 8;
-                ctx.fillText(EMOJIS[candy], x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 2);
-                ctx.shadowBlur = 0;
-            }
-        }
-    }
-}
-
-// --- roundRect ---
-CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
-    if (w < 2 * r) r = w / 2;
-    if (h < 2 * r) r = h / 2;
-    this.moveTo(x + r, y);
-    this.lineTo(x + w - r, y);
-    this.quadraticCurveTo(x + w, y, x + w, y + r);
-    this.lineTo(x + w, y + h - r);
-    this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    this.lineTo(x + r, y + h);
-    this.quadraticCurveTo(x, y + h, x, y + h - r);
-    this.lineTo(x, y + r);
-    this.quadraticCurveTo(x, y, x + r, y);
-    return this;
-};
-
-// --- Обновление счёта ---
-function updateScore() {
-    scoreSpan.textContent = score;
-}
-
 // --- Новая игра ---
 document.getElementById('resetBtn').addEventListener('click', function() {
     board = createBoard();
@@ -401,9 +434,9 @@ document.getElementById('resetBtn').addEventListener('click', function() {
     selectedRow = -1;
     selectedCol = -1;
     isProcessing = false;
-    animating = false;
-    matchHighlights = [];
-    fallingCells = [];
+    particles = [];
+    matchCells = [];
+    dropAnimations = [];
     updateScore();
     drawBoard();
 });
@@ -411,4 +444,4 @@ document.getElementById('resetBtn').addEventListener('click', function() {
 // --- Запуск ---
 board = createBoard();
 drawBoard();
-console.log('Игра запущена с анимацией!');
+console.log('Игра запущена с усиленной анимацией!');

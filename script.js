@@ -15,71 +15,59 @@ let selectedRow = -1;
 let selectedCol = -1;
 let isProcessing = false;
 
-// --- Вспомогательные функции ---
-function getRandomCandy() {
-    return Math.floor(Math.random() * EMOJIS.length);
-}
-
-// --- Создание доски без совпадений ---
+// --- Создание доски ---
 function createBoard() {
     const newBoard = [];
     for (let r = 0; r < ROWS; r++) {
         newBoard[r] = [];
         for (let c = 0; c < COLS; c++) {
-            let candy;
-            let attempts = 0;
-            do {
-                candy = getRandomCandy();
-                attempts++;
-                // Проверяем, не создаст ли это совпадение
-                const horizontalMatch = (c >= 2 && newBoard[r][c-1] === candy && newBoard[r][c-2] === candy);
-                const verticalMatch = (r >= 2 && newBoard[r-1][c] === candy && newBoard[r-2][c] === candy);
-                if (!horizontalMatch && !verticalMatch) break;
-                if (attempts > 100) break;
-            } while (true);
-            newBoard[r][c] = candy;
+            newBoard[r][c] = Math.floor(Math.random() * EMOJIS.length);
         }
     }
     return newBoard;
 }
 
-// --- Поиск всех совпадений ---
-function findAllMatches() {
+// --- Поиск совпадений (возвращает массив объектов {r, c}) ---
+function findMatches() {
     const matches = [];
-    const matched = new Set();
+    const visited = new Set();
 
-    // Проверяем горизонтали
+    // Горизонтальные
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS - 2; c++) {
             const val = board[r][c];
             if (val === -1) continue;
-            let count = 1;
-            while (c + count < COLS && board[r][c + count] === val) count++;
-            if (count >= 3) {
-                for (let i = 0; i < count; i++) {
-                    const key = `${r},${c + i}`;
-                    if (!matched.has(key)) {
-                        matched.add(key);
-                        matches.push({r, c: c + i});
+            
+            let len = 1;
+            while (c + len < COLS && board[r][c + len] === val) len++;
+            
+            if (len >= 3) {
+                for (let i = 0; i < len; i++) {
+                    const key = r + ',' + (c + i);
+                    if (!visited.has(key)) {
+                        visited.add(key);
+                        matches.push({r: r, c: c + i});
                     }
                 }
             }
         }
     }
 
-    // Проверяем вертикали
+    // Вертикальные
     for (let c = 0; c < COLS; c++) {
         for (let r = 0; r < ROWS - 2; r++) {
             const val = board[r][c];
             if (val === -1) continue;
-            let count = 1;
-            while (r + count < ROWS && board[r + count][c] === val) count++;
-            if (count >= 3) {
-                for (let i = 0; i < count; i++) {
-                    const key = `${r + i},${c}`;
-                    if (!matched.has(key)) {
-                        matched.add(key);
-                        matches.push({r: r + i, c});
+            
+            let len = 1;
+            while (r + len < ROWS && board[r + len][c] === val) len++;
+            
+            if (len >= 3) {
+                for (let i = 0; i < len; i++) {
+                    const key = (r + i) + ',' + c;
+                    if (!visited.has(key)) {
+                        visited.add(key);
+                        matches.push({r: r + i, c: c});
                     }
                 }
             }
@@ -89,110 +77,122 @@ function findAllMatches() {
     return matches;
 }
 
-// --- Проверка, есть ли совпадения ---
+// --- Проверка наличия совпадений ---
 function hasMatches() {
-    return findAllMatches().length > 0;
+    return findMatches().length > 0;
 }
 
 // --- Удаление совпадений и гравитация ---
-function clearMatches() {
-    const matches = findAllMatches();
+function removeMatches() {
+    const matches = findMatches();
     if (matches.length === 0) return false;
 
-    // Удаляем совпадения
+    console.log('Найдено совпадений:', matches.length); // Отладка
+
+    // 1. Помечаем ячейки как пустые
     for (let cell of matches) {
         board[cell.r][cell.c] = -1;
     }
 
-    // Применяем гравитацию
+    // 2. Гравитация (всё падает вниз)
     for (let c = 0; c < COLS; c++) {
-        let writeRow = ROWS - 1;
+        let emptyRow = ROWS - 1;
+        // Сдвигаем все непустые ячейки вниз
         for (let r = ROWS - 1; r >= 0; r--) {
             if (board[r][c] !== -1) {
-                board[writeRow][c] = board[r][c];
-                if (writeRow !== r) board[r][c] = -1;
-                writeRow--;
+                board[emptyRow][c] = board[r][c];
+                if (emptyRow !== r) {
+                    board[r][c] = -1;
+                }
+                emptyRow--;
             }
         }
-        // Заполняем пустоты новыми конфетами
-        for (let r = writeRow; r >= 0; r--) {
-            board[r][c] = getRandomCandy();
+        // Заполняем пустоты новыми случайными значениями
+        for (let r = emptyRow; r >= 0; r--) {
+            board[r][c] = Math.floor(Math.random() * EMOJIS.length);
         }
     }
 
-    // Начисляем очки
+    // 3. Начисляем очки
     score += matches.length * 10;
     updateScore();
 
     return true;
 }
 
-// --- Полный цикл очистки ---
+// --- Основной игровой цикл ---
 function processBoard() {
     if (isProcessing) return;
     isProcessing = true;
 
-    let cleared = false;
-    while (clearMatches()) {
-        cleared = true;
+    console.log('Обработка доски...');
+    let anyRemoved = false;
+
+    // Удаляем совпадения, пока они есть
+    let maxIterations = 50; // защита от бесконечного цикла
+    while (maxIterations > 0 && removeMatches()) {
+        anyRemoved = true;
         drawBoard();
+        maxIterations--;
     }
 
     isProcessing = false;
-    
-    if (cleared) {
+    drawBoard();
+
+    if (anyRemoved) {
         // Проверяем, есть ли доступные ходы
         if (!hasValidMoves()) {
             setTimeout(() => {
                 alert('Нет доступных ходов! Перемешиваем...');
                 board = createBoard();
+                // Убираем возможные начальные совпадения
+                while (hasMatches()) {
+                    board = createBoard();
+                }
                 selectedRow = -1;
                 selectedCol = -1;
                 drawBoard();
             }, 300);
         }
     }
-    
-    drawBoard();
 }
 
 // --- Проверка возможных ходов ---
 function hasValidMoves() {
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
-            // Пробуем поменяться с правым соседом
+            // Вправо
             if (c < COLS - 1) {
                 swap(r, c, r, c + 1);
-                if (hasMatches()) {
-                    swap(r, c, r, c + 1);
-                    return true;
-                }
+                const has = hasMatches();
                 swap(r, c, r, c + 1);
+                if (has) return true;
             }
-            // Пробуем поменяться с нижним соседом
+            // Вниз
             if (r < ROWS - 1) {
                 swap(r, c, r + 1, c);
-                if (hasMatches()) {
-                    swap(r, c, r + 1, c);
-                    return true;
-                }
+                const has = hasMatches();
                 swap(r, c, r + 1, c);
+                if (has) return true;
             }
         }
     }
     return false;
 }
 
-// --- Обмен двух клеток ---
+// --- Обмен ---
 function swap(r1, c1, r2, c2) {
     const temp = board[r1][c1];
     board[r1][c1] = board[r2][c2];
     board[r2][c2] = temp;
 }
 
-// --- Обработка кликов ---
+// --- Клик ---
 canvas.addEventListener('click', function(e) {
-    if (isProcessing) return;
+    if (isProcessing) {
+        console.log('Идёт обработка, подождите...');
+        return;
+    }
 
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -202,6 +202,8 @@ canvas.addEventListener('click', function(e) {
     const row = Math.floor(y / TILE_SIZE);
     
     if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return;
+
+    console.log(`Клик: row=${row}, col=${col}`); // Отладка
 
     // Если ничего не выбрано
     if (selectedRow === -1) {
@@ -224,29 +226,28 @@ canvas.addEventListener('click', function(e) {
     const dc = Math.abs(selectedCol - col);
     
     if ((dr === 1 && dc === 0) || (dr === 0 && dc === 1)) {
-        // Сохраняем координаты
         const r1 = selectedRow, c1 = selectedCol;
         const r2 = row, c2 = col;
         
-        // Меняем местами
+        // Меняем
         swap(r1, c1, r2, c2);
         
-        // Проверяем, есть ли совпадения
+        // Проверяем
         if (hasMatches()) {
-            // Ход валидный
+            console.log('Валидный ход!');
             selectedRow = -1;
             selectedCol = -1;
             drawBoard();
             processBoard();
         } else {
-            // Ход невалидный - меняем обратно
+            console.log('Невалидный ход, возвращаем обратно');
             swap(r1, c1, r2, c2);
             selectedRow = -1;
             selectedCol = -1;
             drawBoard();
         }
     } else {
-        // Кликнули на не соседнюю клетку - выбираем её
+        // Выбираем новую клетку
         selectedRow = row;
         selectedCol = col;
         drawBoard();
@@ -263,7 +264,7 @@ function drawBoard() {
             const y = r * TILE_SIZE;
             const candy = board[r][c];
             
-            // Фон клетки
+            // Фон
             if (selectedRow === r && selectedCol === c) {
                 ctx.fillStyle = '#8b6fb0';
                 ctx.shadowColor = '#b392d0';
@@ -279,12 +280,11 @@ function drawBoard() {
             ctx.fill();
             ctx.shadowBlur = 0;
             
-            // Рисуем конфету
-            if (candy !== -1) {
+            // Эмодзи
+            if (candy !== -1 && candy < EMOJIS.length) {
                 ctx.font = `${TILE_SIZE * 0.6}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillStyle = 'white';
                 ctx.shadowColor = 'rgba(0,0,0,0.5)';
                 ctx.shadowBlur = 8;
                 ctx.fillText(EMOJIS[candy], x + TILE_SIZE/2, y + TILE_SIZE/2 + 2);
@@ -294,7 +294,7 @@ function drawBoard() {
     }
 }
 
-// --- Функция для скругления прямоугольников ---
+// --- roundRect ---
 CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
     if (w < 2 * r) r = w / 2;
     if (h < 2 * r) r = h / 2;
@@ -318,14 +318,28 @@ function updateScore() {
 // --- Новая игра ---
 document.getElementById('resetBtn').addEventListener('click', function() {
     board = createBoard();
+    // Убираем начальные совпадения
+    let attempts = 0;
+    while (hasMatches() && attempts < 100) {
+        board = createBoard();
+        attempts++;
+    }
     score = 0;
     selectedRow = -1;
     selectedCol = -1;
     isProcessing = false;
     updateScore();
     drawBoard();
+    console.log('Новая игра!');
 });
 
 // --- Запуск ---
 board = createBoard();
+// Убираем начальные совпадения
+let attempts = 0;
+while (hasMatches() && attempts < 100) {
+    board = createBoard();
+    attempts++;
+}
 drawBoard();
+console.log('Игра запущена!');

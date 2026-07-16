@@ -98,40 +98,11 @@ body {
 #gameUI {
     display: none;
     width: 100%;
+    padding: 10px;
     max-width: 500px;
-    padding: 10px 10px 0;
     margin: 0 auto;
-    position: relative;
 }
 
-/* --- Кнопка назад снаружи --- */
-.back-btn {
-    display: block;
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    color: #c4b0e0;
-    font-size: 15px;
-    padding: 8px 16px;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-weight: 600;
-    margin-bottom: 10px;
-    width: fit-content;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-}
-
-.back-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: #f5e9ff;
-}
-
-.back-btn:active {
-    transform: scale(0.95);
-}
-
-/* --- Рамка игры (как была раньше) --- */
 #app {
     background: #2d2d44;
     padding: 20px 25px 30px;
@@ -227,20 +198,35 @@ canvas {
 }
 
 /* ============================================================
-   КНОПКИ
+   КНОПКИ В ОДНОМ РЯДУ
    ============================================================ */
-#resetBtn {
+#buttonsRow {
+    display: flex;
+    gap: 10px;
     margin-top: 15px;
-    padding: 10px 30px;
+    justify-content: center;
+}
+
+.game-btn {
+    padding: 10px 20px;
     font-size: 16px;
     border: none;
     border-radius: 40px;
-    background: #7b5ea7;
-    color: white;
     cursor: pointer;
     transition: all 0.2s ease;
     font-weight: 600;
     letter-spacing: 1px;
+    color: white;
+    flex: 1;
+    min-width: 0;
+}
+
+.game-btn:active {
+    transform: scale(0.95);
+}
+
+#resetBtn {
+    background: #7b5ea7;
 }
 
 #resetBtn:hover {
@@ -248,8 +234,15 @@ canvas {
     transform: scale(1.03);
 }
 
-#resetBtn:active {
-    transform: scale(0.95);
+.back-btn {
+    background: rgba(255, 255, 255, 0.12);
+    color: #c4b0e0;
+    flex: 0.6;
+}
+
+.back-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    color: #f5e9ff;
 }
 
 /* ============================================================
@@ -322,17 +315,6 @@ canvas {
    АДАПТАЦИЯ ПОД ТЕЛЕФОН
    ============================================================ */
 @media (max-width: 500px) {
-    #gameUI {
-        padding: 8px 8px 0;
-    }
-    
-    .back-btn {
-        font-size: 13px;
-        padding: 6px 12px;
-        margin-bottom: 8px;
-        border-radius: 10px;
-    }
-    
     #app {
         padding: 15px 15px 20px;
         border-radius: 20px;
@@ -340,7 +322,6 @@ canvas {
     
     #app h1 {
         font-size: 1.4em;
-        margin-bottom: 3px;
     }
     
     #stats {
@@ -361,10 +342,19 @@ canvas {
         margin-bottom: 5px;
     }
     
-    #resetBtn {
-        padding: 8px 20px;
+    .game-btn {
         font-size: 13px;
+        padding: 8px 12px;
+        border-radius: 30px;
+    }
+    
+    #buttonsRow {
+        gap: 8px;
         margin-top: 10px;
+    }
+    
+    .back-btn {
+        flex: 0.5;
     }
     
     #menuContainer {
@@ -399,16 +389,6 @@ canvas {
 }
 
 @media (max-width: 400px) {
-    #gameUI {
-        padding: 5px 5px 0;
-    }
-    
-    .back-btn {
-        font-size: 11px;
-        padding: 4px 10px;
-        margin-bottom: 6px;
-    }
-    
     #app {
         padding: 10px 10px 14px;
         border-radius: 16px;
@@ -426,6 +406,17 @@ canvas {
     #stats > div {
         font-size: 10px;
         padding: 1px 4px;
+    }
+    
+    .game-btn {
+        font-size: 11px;
+        padding: 6px 10px;
+        border-radius: 25px;
+    }
+    
+    #buttonsRow {
+        gap: 6px;
+        margin-top: 8px;
     }
     
     .menu-btn {

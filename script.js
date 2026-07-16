@@ -140,9 +140,8 @@ function setupCanvas() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     scale = dpr;
     
-    canvas.style.width = (COLS * TILE_SIZE) + 'px';
-    canvas.style.height = (ROWS * TILE_SIZE) + 'px';
-    
+    // НЕ ТРОГАЕМ canvas.style - пусть CSS управляет размерами!
+    // Только устанавливаем внутренние размеры canvas для чёткости
     canvas.width = COLS * TILE_SIZE * dpr;
     canvas.height = ROWS * TILE_SIZE * dpr;
     

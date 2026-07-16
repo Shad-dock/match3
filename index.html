@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <!-- Меню -->
+    <!-- МЕНЮ ВЫБОРА РЕЖИМА -->
     <div id="menuOverlay">
         <div id="menuContainer">
             <h1>🍬 3 в ряд</h1>
@@ -16,10 +16,13 @@
         </div>
     </div>
 
-    <!-- Игровой UI -->
+    <!-- ИГРОВОЙ UI -->
     <div id="gameUI" style="display: none;">
         <div id="app">
-            <h1>🍬 3 в ряд</h1>
+            <div id="gameHeader">
+                <button id="backBtn" class="back-btn">← Назад</button>
+                <h1>🍬 3 в ряд</h1>
+            </div>
             
             <div id="levelInfo">
                 <span id="levelTitle">Уровень 1</span>
@@ -46,7 +49,7 @@
         </div>
     </div>
 
-    <!-- Оверлей для сообщений -->
+    <!-- ОВЕРЛЕЙ ДЛЯ СООБЩЕНИЙ -->
     <div id="gameOverlay" style="display: none;">
         <div id="overlayContent">
             <h2 id="overlayTitle">Сообщение</h2>

@@ -1,7 +1,8 @@
 // ============================================================
-// 1. ДАННЫЕ УРОВНЕЙ (5 уровней)
+// 1. ДАННЫЕ УРОВНЕЙ (10 уровней: 5 старых + 5 новых)
 // ============================================================
 const LEVELS = [
+    // ===== СТАРЫЕ УРОВНИ (1-5) =====
     {
         id: 1,
         name: 'Уровень 1',
@@ -46,6 +47,63 @@ const LEVELS = [
         maxMoves: 20,
         timeLimit: 0,
         message: 'Набери 500 очков за 20 ходов!'
+    },
+
+    // ===== НОВЫЕ УРОВНИ НА СБОР ФИГУР (6-10) =====
+    {
+        id: 6,
+        name: 'Сбор яблок',
+        type: 'collect',
+        goal: 0,                    // не используется
+        maxMoves: 12,
+        timeLimit: 0,
+        collectColor: 0,            // 0 = красный (🔴)
+        collectCount: 10,
+        message: 'Собери 10 🔴 фигур за 12 ходов!'
+    },
+    {
+        id: 7,
+        name: 'Сбор апельсинов',
+        type: 'collect',
+        goal: 0,
+        maxMoves: 14,
+        timeLimit: 0,
+        collectColor: 1,            // 1 = синий (🔵)
+        collectCount: 12,
+        message: 'Собери 12 🔵 фигур за 14 ходов!'
+    },
+    {
+        id: 8,
+        name: 'Сбор урожая',
+        type: 'collect',
+        goal: 0,
+        maxMoves: 16,
+        timeLimit: 0,
+        collectColor: 2,            // 2 = зелёный (🟢)
+        collectCount: 14,
+        message: 'Собери 14 🟢 фигур за 16 ходов!'
+    },
+    {
+        id: 9,
+        name: 'Сбор звёзд',
+        type: 'collect',
+        goal: 0,
+        maxMoves: 18,
+        timeLimit: 0,
+        collectColor: 3,            // 3 = жёлтый (🟡)
+        collectCount: 16,
+        message: 'Собери 16 🟡 фигур за 18 ходов!'
+    },
+    {
+        id: 10,
+        name: 'Сбор сокровищ',
+        type: 'collect',
+        goal: 0,
+        maxMoves: 20,
+        timeLimit: 0,
+        collectColor: 4,            // 4 = фиолетовый (🟣)
+        collectCount: 18,
+        message: 'Собери 18 🟣 фигур за 20 ходов!'
     }
 ];
 
@@ -74,6 +132,9 @@ let isProcessing = false;
 let currentMode = 'endless';
 let currentLevel = 0;
 let isGameOver = false;
+
+// --- Дополнительные переменные для уровней на сбор ---
+let collectedCount = 0;
 
 // --- Анимационные переменные ---
 let particles = [];
@@ -614,6 +675,22 @@ function updateTimer() {
     timerSpan.textContent = timeLeft + 'с';
 }
 
+function updateLevelUI() {
+    if (currentLevel >= LEVELS.length) return;
+    
+    const level = LEVELS[currentLevel];
+    let goalText = '';
+    
+    if (level.type === 'collect') {
+        const colorEmoji = COLORS[level.collectColor].emoji;
+        goalText = `${colorEmoji}: ${collectedCount}/${level.collectCount}`;
+    } else {
+        goalText = `Цель: ${level.goal} очков`;
+    }
+    
+    levelGoalSpan.textContent = goalText;
+}
+
 function showMessage(text, duration = 2000) {
     const overlay = document.getElementById('gameOverlay');
     const title = document.getElementById('overlayTitle');
@@ -670,6 +747,7 @@ function goToMenu() {
     bombSpawnTimer = 0;
     isAnimating = false;
     currentLevel = 0;
+    collectedCount = 0;
     
     document.getElementById('gameUI').style.display = 'none';
     document.getElementById('menuOverlay').style.display = 'flex';
@@ -691,6 +769,7 @@ function startEndlessMode() {
     bombSpawned = null;
     bombSpawnTimer = 0;
     isAnimating = false;
+    collectedCount = 0;
     
     if (timerInterval) {
         clearInterval(timerInterval);
@@ -719,6 +798,7 @@ let levelTimerInterval = null;
 function startLevelMode() {
     currentMode = 'levels';
     currentLevel = 0;
+    collectedCount = 0;
     document.getElementById('levelInfo').style.display = 'flex';
     startLevel();
 }
@@ -727,7 +807,7 @@ function startLevel() {
     if (currentLevel >= LEVELS.length) {
         showModal(
             '🎉 Поздравляем! 🎉',
-            'Вы прошли все 5 уровней!\nХотите пройти заново?',
+            'Вы прошли все 10 уровней!\nХотите пройти заново?',
             '🔄 Пройти заново',
             function() {
                 currentLevel = 0;
@@ -740,6 +820,7 @@ function startLevel() {
     const level = LEVELS[currentLevel];
     board = createBoard();
     score = 0;
+    collectedCount = 0;
     selectedRow = -1;
     selectedCol = -1;
     isProcessing = false;
@@ -762,9 +843,9 @@ function startLevel() {
     document.getElementById('levelInfo').style.display = 'flex';
     document.getElementById('scoreContainer').style.display = 'block';
     levelTitleSpan.textContent = `${level.name} (${currentLevel + 1}/${LEVELS.length})`;
-    levelGoalSpan.textContent = `Цель: ${level.goal} очков`;
+    updateLevelUI();
     
-    if (level.type === 'moves') {
+    if (level.type === 'moves' || level.type === 'collect') {
         maxMoves = level.maxMoves;
         moves = maxMoves;
         document.getElementById('movesContainer').style.display = 'block';
@@ -807,26 +888,75 @@ function checkLevelResult(won) {
     }
     
     const level = LEVELS[currentLevel];
+    let isComplete = false;
+    let resultMessage = '';
     
-    if (won || score >= level.goal) {
+    // Проверяем условия в зависимости от типа уровня
+    if (level.type === 'collect') {
+        if (collectedCount >= level.collectCount) {
+            isComplete = true;
+            resultMessage = `Собрано ${collectedCount} фигур!`;
+        } else if (moves <= 0) {
+            // Ходы закончились, проверяем ещё раз
+            isComplete = false;
+        }
+    } else {
+        // Для moves и time
+        if (won || score >= level.goal) {
+            isComplete = true;
+            resultMessage = `Вы набрали ${score} очков!`;
+        }
+    }
+    
+    // Если победили
+    if (isComplete) {
         showModal(
             '✅ Уровень пройден!',
-            `Вы набрали ${score} очков!\nПереходим к следующему уровню...`,
+            resultMessage || `Вы набрали ${score} очков!`,
             'Продолжить →',
             function() {
                 currentLevel++;
                 startLevel();
             }
         );
-    } else {
-        showModal(
-            '❌ Попробуйте снова!',
-            `Нужно было набрать ${level.goal} очков, а вы набрали ${score}.\nПопробуйте ещё раз!`,
-            '🔄 Повторить уровень',
-            function() {
-                startLevel();
+        return;
+    }
+    
+    // Проверяем, не провалили ли уровень (для collect и moves)
+    if (level.type === 'collect' || level.type === 'moves') {
+        if (moves <= 0) {
+            let requirement = '';
+            if (level.type === 'collect') {
+                requirement = `собрать ${level.collectCount} ${COLORS[level.collectColor].emoji} фигур`;
+            } else {
+                requirement = `набрать ${level.goal} очков`;
             }
-        );
+            showModal(
+                '❌ Попробуйте снова!',
+                `Ходы закончились!\nНужно было: ${requirement}`,
+                '🔄 Повторить уровень',
+                function() {
+                    startLevel();
+                }
+            );
+            return;
+        }
+    }
+    
+    // Для time проверка на 0 времени уже есть в таймере
+    if (level.type === 'time' && !won && score < level.goal) {
+        // Таймер уже вызвал эту функцию с won = false
+        // Но мы уже обработали это выше
+        if (timeLeft <= 0) {
+            showModal(
+                '❌ Попробуйте снова!',
+                `Время вышло!\nНужно было набрать ${level.goal} очков, а вы набрали ${score}`,
+                '🔄 Повторить уровень',
+                function() {
+                    startLevel();
+                }
+            );
+        }
     }
 }
 
@@ -842,10 +972,29 @@ function processBoardWithAnimation() {
     function step() {
         const result = processMatches();
         
+        // Подсчёт собранных фигур для уровней на сбор
+        if (currentMode === 'levels' && currentLevel < LEVELS.length) {
+            const level = LEVELS[currentLevel];
+            if (level.type === 'collect') {
+                for (let cell of result.removed) {
+                    if (board[cell.r] && board[cell.r][cell.c] === level.collectColor) {
+                        collectedCount++;
+                        updateLevelUI();
+                    }
+                }
+            }
+        }
+        
         if (result.removed.length === 0) {
             isProcessing = false;
             bombSpawned = null;
             bombSpawnTimer = 0;
+            
+            // Проверяем условия уровня
+            if (currentMode === 'levels') {
+                checkLevelResult(false);
+            }
+            
             if (!hasValidMoves()) {
                 setTimeout(() => {
                     showMessage('🔄 Нет ходов! Перемешиваем...', 1500);
@@ -869,13 +1018,14 @@ function processBoardWithAnimation() {
         
         if (currentMode === 'levels') {
             const level = LEVELS[currentLevel];
-            if (score >= level.goal) {
-                checkLevelResult(true);
-                isProcessing = false;
-                return;
-            }
             
-            if (level.type === 'moves') {
+            // Проверяем условия для collect
+            if (level.type === 'collect') {
+                if (collectedCount >= level.collectCount) {
+                    checkLevelResult(true);
+                    isProcessing = false;
+                    return;
+                }
                 moves--;
                 updateMoves();
                 if (moves <= 0) {
@@ -883,6 +1033,26 @@ function processBoardWithAnimation() {
                     isProcessing = false;
                     return;
                 }
+            } else if (level.type === 'moves') {
+                if (score >= level.goal) {
+                    checkLevelResult(true);
+                    isProcessing = false;
+                    return;
+                }
+                moves--;
+                updateMoves();
+                if (moves <= 0) {
+                    checkLevelResult(false);
+                    isProcessing = false;
+                    return;
+                }
+            } else if (level.type === 'time') {
+                if (score >= level.goal) {
+                    checkLevelResult(true);
+                    isProcessing = false;
+                    return;
+                }
+                // Таймер обрабатывается отдельно
             }
         }
         
@@ -955,6 +1125,11 @@ function processBoardWithAnimation() {
                             isProcessing = false;
                             bombSpawned = null;
                             bombSpawnTimer = 0;
+                            
+                            if (currentMode === 'levels') {
+                                checkLevelResult(false);
+                            }
+                            
                             if (!hasValidMoves()) {
                                 setTimeout(() => {
                                     showMessage('🔄 Нет ходов! Перемешиваем...', 1500);
@@ -1089,5 +1264,6 @@ document.addEventListener('DOMContentLoaded', initGame);
 console.log('🎮 Игра 3 в ряд запущена!');
 console.log('📊 Всего уровней: ' + LEVELS.length);
 console.log('♾️ Бесконечный режим - набирай очки без ограничений');
-console.log('🎯 Режим уровней - 5 уровней с разными условиями');
+console.log('🎯 Режим уровней - 10 уровней (5 классических + 5 на сбор фигур)');
 console.log('💣 Бомбы активируются при 3+ в ряд с цветом!');
+console.log('🍎 Уровни на сбор: собери нужное количество фигур!');

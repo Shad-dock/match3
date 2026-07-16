@@ -9,6 +9,12 @@ canvas.width = COLS * TILE_SIZE;
 canvas.height = ROWS * TILE_SIZE;
 
 const EMOJIS = ['🍎', '🍊', '🍇', '🍒', '🍉'];
+// Специальные символы для бомб
+const BOMB_TYPES = {
+    HORIZONTAL: '💥', // горизонтальная бомба
+    VERTICAL: '💫'    // вертикальная бомба
+};
+
 let board = [];
 let score = 0;
 let selectedRow = -1;
@@ -19,6 +25,7 @@ let isProcessing = false;
 let particles = [];
 let matchCells = [];
 let dropAnimations = [];
+let bombExplosions = [];
 
 // --- Создание доски ---
 function createBoard() {
@@ -42,23 +49,48 @@ function createBoard() {
     return newBoard;
 }
 
-// --- Поиск совпадений ---
+// --- Проверка, является ли клетка бомбой ---
+function isBomb(value) {
+    return value === 'HORIZONTAL' || value === 'VERTICAL';
+}
+
+// --- Поиск совпадений с учётом бомб ---
 function findMatches() {
     const matches = [];
     const visited = new Set();
 
+    // Горизонтальные
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS - 2; c++) {
             const val = board[r][c];
-            if (val === -1) continue;
+            if (val === -1 || isBomb(val)) continue;
             let len = 1;
             while (c + len < COLS && board[r][c + len] === val) len++;
             if (len >= 3) {
-                for (let i = 0; i < len; i++) {
-                    const key = r + ',' + (c + i);
-                    if (!visited.has(key)) {
-                        visited.add(key);
-                        matches.push({r: r, c: c + i});
+                // Если собрали ровно 4, создаём бомбу
+                if (len === 4) {
+                    // Создаём горизонтальную бомбу
+                    const bombRow = r;
+                    const bombCol = c + 1; // центр линии
+                    board[bombRow][bombCol] = 'HORIZONTAL';
+                    // Добавляем все клетки кроме бомбы в совпадения
+                    for (let i = 0; i < len; i++) {
+                        if (i !== 1) {
+                            const key = r + ',' + (c + i);
+                            if (!visited.has(key)) {
+                                visited.add(key);
+                                matches.push({r: r, c: c + i});
+                            }
+                        }
+                    }
+                } else {
+                    // Обычные совпадения (3 или 5+)
+                    for (let i = 0; i < len; i++) {
+                        const key = r + ',' + (c + i);
+                        if (!visited.has(key)) {
+                            visited.add(key);
+                            matches.push({r: r, c: c + i});
+                        }
                     }
                 }
             }
@@ -66,18 +98,36 @@ function findMatches() {
         }
     }
 
+    // Вертикальные
     for (let c = 0; c < COLS; c++) {
         for (let r = 0; r < ROWS - 2; r++) {
             const val = board[r][c];
-            if (val === -1) continue;
+            if (val === -1 || isBomb(val)) continue;
             let len = 1;
             while (r + len < ROWS && board[r + len][c] === val) len++;
             if (len >= 3) {
-                for (let i = 0; i < len; i++) {
-                    const key = (r + i) + ',' + c;
-                    if (!visited.has(key)) {
-                        visited.add(key);
-                        matches.push({r: r + i, c: c});
+                if (len === 4) {
+                    // Создаём вертикальную бомбу
+                    const bombRow = r + 1; // центр линии
+                    const bombCol = c;
+                    board[bombRow][bombCol] = 'VERTICAL';
+                    // Добавляем все клетки кроме бомбы в совпадения
+                    for (let i = 0; i < len; i++) {
+                        if (i !== 1) {
+                            const key = (r + i) + ',' + c;
+                            if (!visited.has(key)) {
+                                visited.add(key);
+                                matches.push({r: r + i, c: c});
+                            }
+                        }
+                    }
+                } else {
+                    for (let i = 0; i < len; i++) {
+                        const key = (r + i) + ',' + c;
+                        if (!visited.has(key)) {
+                            visited.add(key);
+                            matches.push({r: r + i, c: c});
+                        }
                     }
                 }
             }
@@ -88,10 +138,106 @@ function findMatches() {
     return matches;
 }
 
-function hasMatches() {
-    return findMatches().length > 0;
+// --- Активация бомб ---
+function activateBombs() {
+    const explosions = [];
+    const toRemove = new Set();
+
+    // Ищем все бомбы на доске
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            const val = board[r][c];
+            if (val === 'HORIZONTAL' || val === 'VERTICAL') {
+                // Активируем бомбу
+                if (val === 'HORIZONTAL') {
+                    // Очищаем всю горизонтальную линию
+                    for (let col = 0; col < COLS; col++) {
+                        if (board[r][col] !== -1) {
+                            toRemove.add(`${r},${col}`);
+                        }
+                    }
+                    explosions.push({r, c, type: 'horizontal'});
+                } else if (val === 'VERTICAL') {
+                    // Очищаем всю вертикальную линию
+                    for (let row = 0; row < ROWS; row++) {
+                        if (board[row][c] !== -1) {
+                            toRemove.add(`${row},${c}`);
+                        }
+                    }
+                    explosions.push({r, c, type: 'vertical'});
+                }
+            }
+        }
+    }
+
+    // Удаляем клетки, попавшие под взрыв
+    const removedCells = [];
+    for (let key of toRemove) {
+        const [r, c] = key.split(',').map(Number);
+        if (board[r][c] !== -1) {
+            removedCells.push({r, c});
+            board[r][c] = -1;
+        }
+    }
+
+    return { explosions, removedCells };
 }
 
+// --- Основная функция поиска совпадений и активации бомб ---
+function processMatches() {
+    let allMatches = [];
+    let allRemoved = [];
+    let allExplosions = [];
+
+    // Сначала активируем существующие бомбы
+    const bombResult = activateBombs();
+    allRemoved = allRemoved.concat(bombResult.removedCells);
+    allExplosions = allExplosions.concat(bombResult.explosions);
+
+    // Затем ищем обычные совпадения
+    const matches = findMatches();
+    allMatches = allMatches.concat(matches);
+
+    // Если есть и бомбы, и совпадения, объединяем
+    const allToRemove = new Set();
+    for (let cell of allRemoved) {
+        allToRemove.add(`${cell.r},${cell.c}`);
+    }
+    for (let cell of allMatches) {
+        allToRemove.add(`${cell.r},${cell.c}`);
+    }
+
+    // Преобразуем обратно в массив
+    const finalRemoved = [];
+    for (let key of allToRemove) {
+        const [r, c] = key.split(',').map(Number);
+        finalRemoved.push({r, c});
+    }
+
+    return {
+        matches: allMatches,
+        removed: finalRemoved,
+        explosions: allExplosions,
+        hasBombs: allExplosions.length > 0
+    };
+}
+
+// --- Проверка наличия совпадений (упрощённая) ---
+function hasMatches() {
+    // Проверяем обычные совпадения
+    const matches = findMatches();
+    if (matches.length > 0) return true;
+    
+    // Проверяем, есть ли бомбы на доске
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            if (isBomb(board[r][c])) return true;
+        }
+    }
+    return false;
+}
+
+// --- Проверка, образуются ли совпадения после обмена ---
 function wouldMatchAfterSwap(r1, c1, r2, c2) {
     const temp = board[r1][c1];
     board[r1][c1] = board[r2][c2];
@@ -119,38 +265,23 @@ function swap(r1, c1, r2, c2) {
     board[r2][c2] = temp;
 }
 
-// --- Создание частиц ---
-function createParticles(matches) {
-    const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6bff'];
-    for (let cell of matches) {
+// --- Создание частиц для взрыва ---
+function createExplosionParticles(cells, color = '#ff6b6b') {
+    for (let cell of cells) {
         const x = cell.c * TILE_SIZE + TILE_SIZE/2;
         const y = cell.r * TILE_SIZE + TILE_SIZE/2;
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 15; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const speed = 2 + Math.random() * 4;
+            const speed = 3 + Math.random() * 6;
             particles.push({
                 x: x,
                 y: y,
                 vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 2,
+                vy: Math.sin(angle) * speed - 3,
                 life: 1,
-                size: 4 + Math.random() * 6,
-                color: colors[Math.floor(Math.random() * colors.length)]
+                size: 3 + Math.random() * 8,
+                color: color
             });
-        }
-    }
-}
-
-// --- Обновление частиц ---
-function updateParticles() {
-    for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vy += 0.15; // гравитация
-        p.life -= 0.02;
-        if (p.life <= 0) {
-            particles.splice(i, 1);
         }
     }
 }
@@ -161,9 +292,9 @@ function processBoardWithAnimation() {
     isProcessing = true;
 
     function step() {
-        const matches = findMatches();
+        const result = processMatches();
         
-        if (matches.length === 0) {
+        if (result.removed.length === 0 && result.matches.length === 0) {
             isProcessing = false;
             if (!hasValidMoves()) {
                 setTimeout(() => {
@@ -177,22 +308,28 @@ function processBoardWithAnimation() {
             return;
         }
 
-        console.log('Найдено совпадений:', matches.length);
+        console.log('Удалено клеток:', result.removed.length);
+        if (result.explosions.length > 0) {
+            console.log('Взрывов бомб:', result.explosions.length);
+        }
+
+        // Подсвечиваем удалённые клетки
+        matchCells = result.removed;
         
-        // 1. Сохраняем совпадения для отрисовки
-        matchCells = matches;
-        createParticles(matches);
+        // Создаём частицы для взрывов
+        if (result.explosions.length > 0) {
+            createExplosionParticles(result.removed, '#ff4444');
+        } else {
+            createExplosionParticles(result.removed, '#ffd700');
+        }
+        
         drawBoard();
 
-        // 2. Через 400ms удаляем и запускаем падение
+        // Через 500ms удаляем и запускаем падение
         setTimeout(() => {
-            // Удаляем совпадения
-            for (let cell of matches) {
-                board[cell.r][cell.c] = -1;
-            }
             matchCells = [];
 
-            // Применяем гравитацию с анимацией
+            // Применяем гравитацию
             const dropData = [];
             for (let c = 0; c < COLS; c++) {
                 let emptyRow = ROWS - 1;
@@ -211,7 +348,6 @@ function processBoardWithAnimation() {
                         emptyRow--;
                     }
                 }
-                // Новые клетки
                 for (let r = emptyRow; r >= 0; r--) {
                     const newVal = Math.floor(Math.random() * EMOJIS.length);
                     dropData.push({
@@ -226,7 +362,8 @@ function processBoardWithAnimation() {
             }
 
             // Начисляем очки
-            score += matches.length * 10;
+            const points = result.removed.length * 10 + result.explosions.length * 50;
+            score += points;
             updateScore();
 
             // Анимируем падение
@@ -237,7 +374,6 @@ function processBoardWithAnimation() {
                 endY: d.toRow * TILE_SIZE
             }));
 
-            // Запускаем анимацию падения
             let startTime = Date.now();
             const duration = 400;
 
@@ -246,7 +382,6 @@ function processBoardWithAnimation() {
                 const progress = Math.min(elapsed / duration, 1);
                 const eased = progress * progress * (3 - 2 * progress);
 
-                // Обновляем прогресс для каждой падающей клетки
                 for (let d of dropAnimations) {
                     d.progress = eased;
                 }
@@ -258,14 +393,14 @@ function processBoardWithAnimation() {
                 } else {
                     dropAnimations = [];
                     drawBoard();
-                    // Рекурсивно проверяем новые совпадения
+                    // Проверяем новые совпадения
                     setTimeout(() => step(), 100);
                 }
             }
 
             animateDrop();
 
-        }, 400);
+        }, 500);
     }
 
     step();
@@ -275,7 +410,6 @@ function processBoardWithAnimation() {
 function drawBoard() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Рисуем клетки
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
             const x = c * TILE_SIZE;
@@ -283,7 +417,6 @@ function drawBoard() {
             let candy = board[r][c];
             let drawY = y;
             
-            // Проверяем, падает ли клетка
             const drop = dropAnimations.find(d => d.toRow === r && d.col === c);
             if (drop && drop.progress < 1) {
                 const currentY = drop.startY + (drop.endY - drop.startY) * drop.progress;
@@ -291,7 +424,6 @@ function drawBoard() {
                 candy = drop.value;
             }
             
-            // Подсветка совпадений
             const isMatch = matchCells.some(m => m.r === r && m.c === c);
             
             // Фон клетки
@@ -304,11 +436,18 @@ function drawBoard() {
                 shadowColor = '#b392d0';
                 shadowBlur = 25;
             } else if (isMatch) {
-                // Яркая подсветка для совпадений
                 const pulse = Math.sin(Date.now() / 100) * 0.3 + 0.7;
                 fillColor = `rgba(255, 215, 0, ${pulse})`;
                 shadowColor = '#ffd700';
                 shadowBlur = 40;
+            } else if (candy === 'HORIZONTAL') {
+                fillColor = '#ff6b6b';
+                shadowColor = '#ff0000';
+                shadowBlur = 20;
+            } else if (candy === 'VERTICAL') {
+                fillColor = '#4d96ff';
+                shadowColor = '#0066ff';
+                shadowBlur = 20;
             }
             
             ctx.fillStyle = fillColor;
@@ -320,21 +459,33 @@ function drawBoard() {
             ctx.fill();
             ctx.shadowBlur = 0;
             
-            // Рисуем эмодзи
-            if (candy !== -1 && candy < EMOJIS.length) {
-                const size = isMatch ? TILE_SIZE * 0.7 : TILE_SIZE * 0.6;
-                ctx.font = `${size}px Arial`;
+            // Рисуем содержимое
+            if (candy !== -1) {
+                let displayText = '';
+                let fontSize = TILE_SIZE * 0.6;
+                
+                if (candy === 'HORIZONTAL') {
+                    displayText = '💥';
+                    fontSize = TILE_SIZE * 0.7;
+                } else if (candy === 'VERTICAL') {
+                    displayText = '💫';
+                    fontSize = TILE_SIZE * 0.7;
+                } else if (candy < EMOJIS.length) {
+                    displayText = EMOJIS[candy];
+                }
+                
+                ctx.font = `${fontSize}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.shadowColor = 'rgba(0,0,0,0.5)';
                 ctx.shadowBlur = 8;
-                ctx.fillText(EMOJIS[candy], x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 2);
+                ctx.fillText(displayText, x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 2);
                 ctx.shadowBlur = 0;
             }
         }
     }
     
-    // Рисуем частицы поверх всего
+    // Частицы
     for (let p of particles) {
         ctx.globalAlpha = p.life;
         ctx.fillStyle = p.color;
@@ -347,9 +498,17 @@ function drawBoard() {
     }
     ctx.globalAlpha = 1;
     
-    // Обновляем частицы
     if (particles.length > 0) {
-        updateParticles();
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.15;
+            p.life -= 0.02;
+            if (p.life <= 0) {
+                particles.splice(i, 1);
+            }
+        }
         requestAnimationFrame(drawBoard);
     }
 }
@@ -444,4 +603,5 @@ document.getElementById('resetBtn').addEventListener('click', function() {
 // --- Запуск ---
 board = createBoard();
 drawBoard();
-console.log('Игра запущена с усиленной анимацией!');
+console.log('Игра запущена с бомбами!');
+console.log('Собери 4 в ряд, чтобы создать бомбу!');

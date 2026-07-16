@@ -16,7 +16,9 @@ let matchCells = [];
 let dropAnimations = [];
 let bombSpawned = null;
 let bombSpawnTimer = 0;
-let animationFrameId = null;
+let isAnimating = false;
+let lastFrameTime = 0;
+const TARGET_FPS = 30; // Ограничиваем до 30 FPS на телефоне
 
 // --- 5 разных цветов ---
 const COLORS = [
@@ -52,11 +54,12 @@ function getBombColorHex(value) {
     return COLORS[colorId].hex;
 }
 
-// --- АДАПТАЦИЯ ПОД ТЕЛЕФОН (Retina) ---
+// --- АДАПТАЦИЯ ПОД ТЕЛЕФОН ---
 let TILE_SIZE = 60;
 let scale = 1;
 let canvasWidth = 0;
 let canvasHeight = 0;
+let dpr = 1;
 
 function setupCanvas() {
     const maxWidth = window.innerWidth - 40;
@@ -64,7 +67,7 @@ function setupCanvas() {
     const size = Math.min(maxWidth, maxHeight) / 8;
     TILE_SIZE = Math.max(30, Math.min(60, size));
     
-    const dpr = window.devicePixelRatio || 1;
+    dpr = Math.min(window.devicePixelRatio || 1, 2); // Ограничиваем DPI для производительности
     scale = dpr;
     
     canvas.style.width = (COLS * TILE_SIZE) + 'px';
@@ -110,12 +113,11 @@ function createBoard() {
     return newBoard;
 }
 
-// --- Поиск совпадений (возвращает группы) ---
+// --- Поиск совпадений ---
 function findMatchGroups() {
     const groups = [];
     const visited = new Set();
 
-    // Горизонтальные
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS - 2; c++) {
             const val = board[r][c];
@@ -146,7 +148,6 @@ function findMatchGroups() {
         }
     }
 
-    // Вертикальные
     for (let c = 0; c < COLS; c++) {
         for (let r = 0; r < ROWS - 2; r++) {
             const val = board[r][c];
@@ -213,42 +214,34 @@ function getAllMatches() {
 
 // --- Проверка, образует ли бомба ряд из 3+ ---
 function checkBombMatch(r, c, bombColor) {
-    // Проверяем горизонтально
     let horizontalCount = 1;
-    // Влево
     for (let col = c - 1; col >= 0; col--) {
         const val = board[r][col];
         if (val === -1 || isBomb(val) || val !== bombColor) break;
         horizontalCount++;
     }
-    // Вправо
     for (let col = c + 1; col < COLS; col++) {
         const val = board[r][col];
         if (val === -1 || isBomb(val) || val !== bombColor) break;
         horizontalCount++;
     }
-    
     if (horizontalCount >= 3) return true;
     
-    // Проверяем вертикально
     let verticalCount = 1;
-    // Вверх
     for (let row = r - 1; row >= 0; row--) {
         const val = board[row][c];
         if (val === -1 || isBomb(val) || val !== bombColor) break;
         verticalCount++;
     }
-    // Вниз
     for (let row = r + 1; row < ROWS; row++) {
         const val = board[row][c];
         if (val === -1 || isBomb(val) || val !== bombColor) break;
         verticalCount++;
     }
-    
     return verticalCount >= 3;
 }
 
-// --- Активация бомб (только при 3+ в ряд) ---
+// --- Активация бомб ---
 function activateBombs() {
     const toRemove = [];
     const explosions = [];
@@ -260,9 +253,7 @@ function activateBombs() {
                 const bombColor = getBombColor(val);
                 const direction = getBombDirection(val);
                 
-                // Проверяем, образует ли бомба ряд из 3+
                 if (checkBombMatch(r, c, bombColor)) {
-                    // Активируем бомбу
                     if (direction === 'horizontal') {
                         for (let col = 0; col < COLS; col++) {
                             if (board[r][col] !== -1) {
@@ -304,7 +295,7 @@ function processMatches() {
         if (!allRemoved.has(`${bomb.row},${bomb.col}`)) {
             board[bomb.row][bomb.col] = bomb.type;
             bombSpawned = bomb;
-            bombSpawnTimer = 20;
+            bombSpawnTimer = 15;
         }
     }
 
@@ -331,7 +322,6 @@ function hasMatches() {
         if (group.length >= 3) return true;
     }
     
-    // Проверяем бомбы (только если они образуют ряд из 3+)
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
             const val = board[r][c];
@@ -343,7 +333,6 @@ function hasMatches() {
             }
         }
     }
-    
     return false;
 }
 
@@ -375,28 +364,26 @@ function swap(r1, c1, r2, c2) {
     board[r2][c2] = temp;
 }
 
-// --- Частицы (оптимизированные) ---
-let particleAnimationRunning = false;
-
+// --- Частицы (максимально упрощённые) ---
 function createExplosionParticles(cells, color = '#ff6b6b') {
-    const count = Math.min(cells.length * 8, 60); // Ограничиваем количество частиц
+    const maxParticles = 30;
+    let count = 0;
     for (let cell of cells) {
+        if (count >= maxParticles) break;
         const x = cell.c * TILE_SIZE + TILE_SIZE/2;
         const y = cell.r * TILE_SIZE + TILE_SIZE/2;
-        const numParticles = Math.min(6, Math.floor(60 / cells.length));
-        for (let i = 0; i < numParticles; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 1 + Math.random() * 4;
-            particles.push({
-                x, y,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 2,
-                life: 0.8 + Math.random() * 0.2,
-                maxLife: 0.8 + Math.random() * 0.2,
-                size: 2 + Math.random() * 5,
-                color: color
-            });
-        }
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1 + Math.random() * 3;
+        particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 1.5,
+            life: 0.6 + Math.random() * 0.2,
+            maxLife: 0.6 + Math.random() * 0.2,
+            size: 2 + Math.random() * 3,
+            color: color
+        });
+        count++;
     }
 }
 
@@ -406,8 +393,8 @@ function updateParticles() {
         const p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.2;
-        p.life -= 0.025;
+        p.vy += 0.15;
+        p.life -= 0.035;
         if (p.life <= 0) {
             particles.splice(i, 1);
         } else {
@@ -499,7 +486,7 @@ function processBoardWithAnimation() {
             }));
 
             let startTime = Date.now();
-            const duration = 250;
+            const duration = 200;
 
             function animateDrop() {
                 const elapsed = Date.now() - startTime;
@@ -534,19 +521,19 @@ function processBoardWithAnimation() {
                                 }, 300);
                             }
                         }
-                    }, 150);
+                    }, 100);
                 }
             }
 
             animateDrop();
 
-        }, 350);
+        }, 250);
     }
 
     step();
 }
 
-// --- Отрисовка (оптимизированная) ---
+// --- Отрисовка (максимально упрощённая) ---
 function drawBoard() {
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -574,115 +561,108 @@ function drawBoard() {
             
             const isMatch = matchCells.some(m => m.r === r && m.c === c);
             
-            let fillColor = '#4a3a5c';
-            let shadowColor = 'rgba(0,0,0,0.3)';
-            let shadowBlur = 8;
+            // Упрощённая отрисовка без сложных теней
+            let fillColor = '#3a2a4a';
             
             if (selectedRow === r && selectedCol === c) {
-                fillColor = '#8b6fb0';
-                shadowColor = '#b392d0';
-                shadowBlur = 25;
+                fillColor = '#7b5ea7';
             } else if (isMatch) {
-                const pulse = Math.sin(Date.now() / 100) * 0.3 + 0.7;
-                fillColor = `rgba(255, 215, 0, ${pulse})`;
-                shadowColor = '#ffd700';
-                shadowBlur = 40;
+                fillColor = '#ffd700';
             } else if (isBomb(candy)) {
-                const bombColorHex = getBombColorHex(candy);
-                const dir = getBombDirection(candy);
-                fillColor = bombColorHex;
-                shadowColor = bombColorHex;
-                shadowBlur = 30;
-                
-                ctx.fillStyle = fillColor;
-                ctx.shadowColor = shadowColor;
-                ctx.shadowBlur = shadowBlur;
-                
-                const size = TILE_SIZE - 4;
-                ctx.beginPath();
-                ctx.roundRect(x + 2, drawY + 2, size, size, 8);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-                
-                ctx.beginPath();
-                ctx.arc(x + TILE_SIZE/2, drawY + TILE_SIZE/2, TILE_SIZE * 0.35, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(255,255,255,0.25)';
-                ctx.fill();
-                
-                ctx.font = `${TILE_SIZE * 0.5}px Arial`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = '#ffffff';
-                ctx.shadowColor = 'rgba(0,0,0,0.8)';
-                ctx.shadowBlur = 10;
-                
-                if (dir === 'horizontal') {
-                    ctx.fillText('↔', x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 1);
-                } else {
-                    ctx.fillText('↕', x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 1);
-                }
-                ctx.shadowBlur = 0;
-                
-                const color = COLORS[getBombColor(candy)];
-                ctx.beginPath();
-                ctx.arc(x + TILE_SIZE - 8, drawY + 8, 4, 0, Math.PI * 2);
-                ctx.fillStyle = color.hex;
-                ctx.shadowColor = color.hex;
-                ctx.shadowBlur = 10;
-                ctx.fill();
-                ctx.shadowBlur = 0;
-                
-                continue;
-                
+                fillColor = getBombColorHex(candy);
             } else if (candy !== -1 && candy < COLORS.length) {
                 const color = COLORS[candy];
-                fillColor = color.hex + '88';
-                shadowColor = color.hex;
-                shadowBlur = 15;
+                fillColor = color.hex;
+                // Делаем цвет более тёмным для обычных клеток
+                fillColor = fillColor + '88';
             }
             
+            // Рисуем клетку без теней для скорости
+            const size = TILE_SIZE - 3;
             ctx.fillStyle = fillColor;
-            ctx.shadowColor = shadowColor;
-            ctx.shadowBlur = shadowBlur;
-            
-            const size = TILE_SIZE - 4;
             ctx.beginPath();
-            ctx.roundRect(x + 2, drawY + 2, size, size, 8);
+            ctx.roundRect(x + 1.5, drawY + 1.5, size, size, 6);
             ctx.fill();
-            ctx.shadowBlur = 0;
             
-            if (candy !== -1 && candy !== undefined && !isBomb(candy) && candy < COLORS.length) {
-                const color = COLORS[candy];
-                ctx.font = `${TILE_SIZE * 0.55}px Arial`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.shadowColor = 'rgba(0,0,0,0.5)';
-                ctx.shadowBlur = 8;
-                ctx.fillStyle = '#ffffff';
-                ctx.fillText(color.emoji, x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 1);
-                ctx.shadowBlur = 0;
+            // Рисуем содержимое
+            if (candy !== -1 && candy !== undefined) {
+                let displayText = '';
+                let fontSize = TILE_SIZE * 0.5;
+                let isBombCell = false;
+                
+                if (isBomb(candy)) {
+                    const dir = getBombDirection(candy);
+                    displayText = dir === 'horizontal' ? '↔' : '↕';
+                    fontSize = TILE_SIZE * 0.5;
+                    isBombCell = true;
+                } else if (candy < COLORS.length) {
+                    displayText = COLORS[candy].emoji;
+                    fontSize = TILE_SIZE * 0.5;
+                }
+                
+                if (displayText) {
+                    ctx.font = `${fontSize}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = isBombCell ? '#ffffff' : '#ffffff';
+                    ctx.fillText(displayText, x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 1);
+                }
+                
+                // Маленький индикатор цвета для бомбы
+                if (isBombCell) {
+                    const color = COLORS[getBombColor(candy)];
+                    ctx.fillStyle = color.hex;
+                    ctx.beginPath();
+                    ctx.arc(x + TILE_SIZE - 6, drawY + 6, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
         }
     }
     
-    // Частицы (оптимизированные)
+    // Частицы (упрощённые)
     if (particles.length > 0) {
         for (let p of particles) {
-            ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+            const alpha = Math.max(0, p.life / p.maxLife);
+            ctx.globalAlpha = alpha;
             ctx.fillStyle = p.color;
-            ctx.shadowColor = p.color;
-            ctx.shadowBlur = 10;
+            const size = Math.max(1, p.size * alpha);
             ctx.beginPath();
-            ctx.arc(p.x, p.y, Math.max(0.5, p.size * (p.life / p.maxLife)), 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
             ctx.fill();
-            ctx.shadowBlur = 0;
         }
         ctx.globalAlpha = 1;
         
         const hasActive = updateParticles();
-        if (hasActive) {
-            requestAnimationFrame(drawBoard);
+        if (hasActive && !isProcessing) {
+            // Используем requestAnimationFrame только если есть частицы
+            if (!isAnimating) {
+                isAnimating = true;
+                requestAnimationFrame(particleLoop);
+            }
+        } else {
+            isAnimating = false;
         }
+    }
+}
+
+// --- Цикл анимации частиц с ограничением FPS ---
+function particleLoop(timestamp) {
+    if (!isAnimating) return;
+    
+    // Ограничиваем FPS до TARGET_FPS
+    if (timestamp - lastFrameTime < 1000 / TARGET_FPS) {
+        requestAnimationFrame(particleLoop);
+        return;
+    }
+    lastFrameTime = timestamp;
+    
+    if (particles.length > 0) {
+        drawBoard();
+        requestAnimationFrame(particleLoop);
+    } else {
+        isAnimating = false;
+        drawBoard();
     }
 }
 
@@ -779,6 +759,7 @@ document.getElementById('resetBtn').addEventListener('click', function() {
     dropAnimations = [];
     bombSpawned = null;
     bombSpawnTimer = 0;
+    isAnimating = false;
     updateScore();
     resizeCanvas();
 });
@@ -787,7 +768,6 @@ document.getElementById('resetBtn').addEventListener('click', function() {
 board = createBoard();
 resizeCanvas();
 drawBoard();
-console.log('Игра запущена!2.4');
+console.log('Игра запущена! (оптимизированная версия)');
 console.log('🔴🔵🟢🟡🟣 - 5 разных цветов');
-console.log('Собери 4 в ряд → появится бомба');
 console.log('Бомба активируется только при 3+ в ряд с её цветом!');

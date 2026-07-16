@@ -140,8 +140,7 @@ function setupCanvas() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     scale = dpr;
     
-    // НЕ ТРОГАЕМ canvas.style - пусть CSS управляет размерами!
-    // Только устанавливаем внутренние размеры canvas для чёткости
+    // Только внутренние размеры canvas, CSS управляет отображением
     canvas.width = COLS * TILE_SIZE * dpr;
     canvas.height = ROWS * TILE_SIZE * dpr;
     
@@ -640,9 +639,10 @@ function showModal(title, messageText, buttonText, callback) {
     titleEl.textContent = title;
     messageEl.textContent = messageText;
     btn.textContent = buttonText || 'OK';
-    btn.style.display = 'block';
+    btn.style.display = 'inline-block';
     overlay.style.display = 'flex';
     
+    btn.onclick = null;
     btn.onclick = function() {
         overlay.style.display = 'none';
         if (callback) callback();
@@ -653,7 +653,6 @@ function showModal(title, messageText, buttonText, callback) {
 // 10. ВОЗВРАТ В МЕНЮ
 // ============================================================
 function goToMenu() {
-    // Останавливаем таймер, если он есть
     if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
@@ -663,7 +662,6 @@ function goToMenu() {
         levelTimerInterval = null;
     }
     
-    // Сбрасываем состояние
     isProcessing = false;
     particles = [];
     matchCells = [];
@@ -727,7 +725,6 @@ function startLevelMode() {
 
 function startLevel() {
     if (currentLevel >= LEVELS.length) {
-        // Все уровни пройдены!
         showModal(
             '🎉 Поздравляем! 🎉',
             'Вы прошли все 5 уровней!\nХотите пройти заново?',
@@ -866,12 +863,10 @@ function processBoardWithAnimation() {
             createExplosionParticles(result.removed, '#ffd700');
         }
         
-        // Обновляем счёт
         const points = result.removed.length * 10 + result.explosions.length * 50;
         score += points;
         updateScore();
         
-        // Проверяем условия уровня
         if (currentMode === 'levels') {
             const level = LEVELS[currentLevel];
             if (score >= level.goal) {
@@ -896,7 +891,6 @@ function processBoardWithAnimation() {
         setTimeout(() => {
             matchCells = [];
 
-            // Гравитация
             const dropData = [];
             for (let c = 0; c < COLS; c++) {
                 let emptyRow = ROWS - 1;
@@ -1031,7 +1025,6 @@ function handleCellClick(x, y) {
         const r1 = selectedRow, c1 = selectedCol;
         const r2 = row, c2 = col;
         
-        // Пробуем обменять
         swap(r1, c1, r2, c2);
         
         if (hasMatches()) {
@@ -1058,7 +1051,6 @@ function handleCellClick(x, y) {
 function initGame() {
     setupCanvas();
     
-    // Кнопки меню
     document.getElementById('btnEndless').addEventListener('click', function() {
         document.getElementById('menuOverlay').style.display = 'none';
         document.getElementById('gameUI').style.display = 'block';
@@ -1071,7 +1063,6 @@ function initGame() {
         startLevelMode();
     });
     
-    // Кнопка "Назад" в игре
     document.getElementById('backBtn').addEventListener('click', function() {
         goToMenu();
     });
@@ -1087,7 +1078,6 @@ function initGame() {
     canvas.addEventListener('click', handleClick);
     canvas.addEventListener('touchstart', handleTouch, { passive: false });
     
-    // Показываем меню
     document.getElementById('menuOverlay').style.display = 'flex';
     document.getElementById('gameUI').style.display = 'none';
 }

@@ -15,6 +15,7 @@ let particles = [];
 let matchCells = [];
 let dropAnimations = [];
 let bombSpawned = null;
+let bombSpawnTimer = 0; // Таймер для анимации появления бомбы
 
 // --- 5 разных цветов с уникальными эмодзи и цветами бомб ---
 const COLORS = [
@@ -58,20 +59,40 @@ function getBombColorHex(value) {
     return COLORS[colorId].hex;
 }
 
-// --- АДАПТАЦИЯ ПОД ТЕЛЕФОН ---
-function getTileSize() {
+// --- АДАПТАЦИЯ ПОД ТЕЛЕФОН (Retina) ---
+let TILE_SIZE = 60;
+let scale = 1;
+let canvasWidth = 0;
+let canvasHeight = 0;
+
+function setupCanvas() {
+    const container = canvas.parentElement;
     const maxWidth = window.innerWidth - 40;
     const maxHeight = window.innerHeight - 200;
     const size = Math.min(maxWidth, maxHeight) / 8;
-    return Math.max(30, Math.min(60, size));
+    TILE_SIZE = Math.max(30, Math.min(60, size));
+    
+    // Учитываем DPI экрана для чёткости
+    const dpr = window.devicePixelRatio || 1;
+    scale = dpr;
+    
+    // Размер в CSS-пикселях
+    canvas.style.width = (COLS * TILE_SIZE) + 'px';
+    canvas.style.height = (ROWS * TILE_SIZE) + 'px';
+    
+    // Размер в физических пикселях (с учётом DPI)
+    canvas.width = COLS * TILE_SIZE * dpr;
+    canvas.height = ROWS * TILE_SIZE * dpr;
+    
+    // Масштабируем контекст
+    ctx.scale(dpr, dpr);
+    
+    canvasWidth = COLS * TILE_SIZE;
+    canvasHeight = ROWS * TILE_SIZE;
 }
 
-let TILE_SIZE = getTileSize();
-
 function resizeCanvas() {
-    TILE_SIZE = getTileSize();
-    canvas.width = COLS * TILE_SIZE;
-    canvas.height = ROWS * TILE_SIZE;
+    setupCanvas();
     if (board && board.length > 0) {
         drawBoard();
     }
@@ -280,6 +301,7 @@ function processMatches() {
         if (!allRemoved.has(`${bomb.row},${bomb.col}`)) {
             board[bomb.row][bomb.col] = bomb.type;
             bombSpawned = bomb;
+            bombSpawnTimer = 20; // 20 кадров анимации
         }
     }
 
@@ -384,12 +406,15 @@ function processBoardWithAnimation() {
     if (isProcessing) return;
     isProcessing = true;
     bombSpawned = null;
+    bombSpawnTimer = 0;
 
     function step() {
         const result = processMatches();
         
         if (result.removed.length === 0) {
             isProcessing = false;
+            bombSpawned = null;
+            bombSpawnTimer = 0;
             if (!hasValidMoves()) {
                 setTimeout(() => {
                     alert('Нет ходов! Перемешиваем...');
@@ -484,6 +509,8 @@ function processBoardWithAnimation() {
                             step();
                         } else {
                             isProcessing = false;
+                            bombSpawned = null;
+                            bombSpawnTimer = 0;
                             if (!hasValidMoves()) {
                                 setTimeout(() => {
                                     alert('Нет ходов! Перемешиваем...');
@@ -508,7 +535,17 @@ function processBoardWithAnimation() {
 
 // --- Отрисовка ---
 function drawBoard() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Очищаем с учётом scale
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    
+    // Уменьшаем таймер анимации бомбы
+    if (bombSpawnTimer > 0) {
+        bombSpawnTimer--;
+        if (bombSpawnTimer === 0) {
+            bombSpawned = null;
+        }
+    }
     
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
@@ -525,7 +562,6 @@ function drawBoard() {
             }
             
             const isMatch = matchCells.some(m => m.r === r && m.c === c);
-            const isBombSpawn = bombSpawned && bombSpawned.row === r && bombSpawned.col === c;
             
             let fillColor = '#4a3a5c';
             let shadowColor = 'rgba(0,0,0,0.3)';
@@ -551,24 +587,58 @@ function drawBoard() {
                 fillColor = bombColorHex;
                 shadowColor = bombColorHex;
                 shadowBlur = 30;
-                displayText = dir === 'horizontal' ? '⟷' : '⟷';
-                // Поворачиваем для вертикальной
-                if (dir === 'vertical') {
-                    displayText = '⟷';
-                    // Рисуем вертикальную стрелку отдельно
-                }
                 fontSize = TILE_SIZE * 0.7;
                 textColor = '#ffffff';
-            } else if (isBombSpawn) {
-                fillColor = '#ffd700';
-                shadowColor = '#ffd700';
-                shadowBlur = 40;
+                
+                // Рисуем клетку
+                ctx.fillStyle = fillColor;
+                ctx.shadowColor = shadowColor;
+                ctx.shadowBlur = shadowBlur;
+                
+                const size = TILE_SIZE - 4;
+                ctx.beginPath();
+                ctx.roundRect(x + 2, drawY + 2, size, size, 8);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                // Рисуем круглый фон для бомбы
+                ctx.beginPath();
+                ctx.arc(x + TILE_SIZE/2, drawY + TILE_SIZE/2, TILE_SIZE * 0.35, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.fill();
+                
+                // Рисуем символ направления
+                ctx.font = `${TILE_SIZE * 0.5}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                ctx.shadowBlur = 10;
+                
+                if (dir === 'horizontal') {
+                    ctx.fillText('↔', x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 1);
+                } else {
+                    ctx.fillText('↕', x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 1);
+                }
+                ctx.shadowBlur = 0;
+                
+                // Рисуем маленький цветной индикатор
+                const color = COLORS[getBombColor(candy)];
+                ctx.beginPath();
+                ctx.arc(x + TILE_SIZE - 8, drawY + 8, 4, 0, Math.PI * 2);
+                ctx.fillStyle = color.hex;
+                ctx.shadowColor = color.hex;
+                ctx.shadowBlur = 10;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                continue; // Переходим к следующей клетке
+                
             } else if (candy !== -1 && candy < COLORS.length) {
                 // Обычная клетка
                 const color = COLORS[candy];
-                // Используем светлый фон для цветных клеток
                 const colorHex = color.hex;
-                fillColor = colorHex + '88'; // Полупрозрачный
+                fillColor = colorHex + '88';
                 shadowColor = colorHex;
                 shadowBlur = 15;
                 displayText = color.emoji;
@@ -587,67 +657,17 @@ function drawBoard() {
             ctx.fill();
             ctx.shadowBlur = 0;
             
-            // Рисуем содержимое
-            if (candy !== -1 && candy !== undefined) {
-                // Для бомб рисуем специальный дизайн
-                if (isBomb(candy)) {
-                    const dir = getBombDirection(candy);
-                    const colorId = getBombColor(candy);
-                    const color = COLORS[colorId];
-                    
-                    // Рисуем круглый фон для бомбы
-                    ctx.beginPath();
-                    ctx.arc(x + TILE_SIZE/2, drawY + TILE_SIZE/2, TILE_SIZE * 0.35, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                    ctx.fill();
-                    
-                    // Рисуем символ направления
-                    ctx.font = `${TILE_SIZE * 0.5}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillStyle = '#ffffff';
-                    ctx.shadowColor = 'rgba(0,0,0,0.8)';
-                    ctx.shadowBlur = 10;
-                    
-                    if (dir === 'horizontal') {
-                        ctx.fillText('↔', x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 1);
-                    } else {
-                        ctx.fillText('↕', x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 1);
-                    }
-                    ctx.shadowBlur = 0;
-                    
-                    // Рисуем маленький цветной индикатор
-                    ctx.beginPath();
-                    ctx.arc(x + TILE_SIZE - 8, drawY + 8, 4, 0, Math.PI * 2);
-                    ctx.fillStyle = color.hex;
-                    ctx.shadowColor = color.hex;
-                    ctx.shadowBlur = 10;
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-                    
-                } else if (!isBombSpawn && candy < COLORS.length) {
-                    // Обычная клетка - рисуем эмодзи
-                    const color = COLORS[candy];
-                    ctx.font = `${fontSize}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-                    ctx.shadowBlur = 8;
-                    ctx.fillStyle = textColor;
-                    ctx.fillText(displayText, x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 1);
-                    ctx.shadowBlur = 0;
-                } else if (isBombSpawn) {
-                    // Анимация появления бомбы
-                    const pulse = Math.sin(Date.now() / 150) * 0.3 + 0.7;
-                    ctx.font = `${TILE_SIZE * 0.7}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.shadowColor = '#ffd700';
-                    ctx.shadowBlur = 30 * pulse;
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillText('⭐', x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 1);
-                    ctx.shadowBlur = 0;
-                }
+            // Рисуем содержимое для обычных клеток
+            if (candy !== -1 && candy !== undefined && !isBomb(candy) && candy < COLORS.length) {
+                const color = COLORS[candy];
+                ctx.font = `${fontSize}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 8;
+                ctx.fillStyle = textColor;
+                ctx.fillText(displayText, x + TILE_SIZE/2, drawY + TILE_SIZE/2 + 1);
+                ctx.shadowBlur = 0;
             }
         }
     }
@@ -705,8 +725,8 @@ function handleClick(clientX, clientY) {
     if (isProcessing) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = (clientX - rect.left) * (canvas.width / rect.width);
-    const y = (clientY - rect.top) * (canvas.height / rect.height);
+    const x = (clientX - rect.left) * (canvasWidth / rect.width);
+    const y = (clientY - rect.top) * (canvasHeight / rect.height);
     
     const col = Math.floor(x / TILE_SIZE);
     const row = Math.floor(y / TILE_SIZE);
@@ -774,15 +794,16 @@ document.getElementById('resetBtn').addEventListener('click', function() {
     matchCells = [];
     dropAnimations = [];
     bombSpawned = null;
+    bombSpawnTimer = 0;
     updateScore();
-    drawBoard();
+    resizeCanvas();
 });
 
 // --- Запуск ---
 board = createBoard();
 resizeCanvas();
 drawBoard();
-console.log('Игра запущена!2.2');
+console.log('Игра запущена!2.3');
 console.log('🔴🔵🟢🟡🟣 - 5 разных цветов');
 console.log('Собери 4 в ряд → появится бомба соответствующего цвета');
 console.log('Бомбы: ↔ - горизонтальная, ↕ - вертикальная');

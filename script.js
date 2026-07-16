@@ -2,7 +2,7 @@
 // 1. ДАННЫЕ УРОВНЕЙ (25 уровней, 5 типов)
 // ============================================================
 const LEVELS = [
-    // ===== УРОВЕНЬ 1-5: НАЧАЛЬНЫЕ =====
+    // ===== УРОВЕНЬ 1-5: КЛАССИЧЕСКИЕ (moves/time) =====
     {
         id: 1,
         name: 'Уровень 1',
@@ -49,7 +49,7 @@ const LEVELS = [
         message: 'Набери 500 очков за 20 ходов!'
     },
 
-    // ===== УРОВЕНЬ 6-10: С ПРЕПЯТСТВИЯМИ =====
+    // ===== УРОВЕНЬ 6-10: С ПРЕПЯТСТВИЯМИ (blocks) =====
     {
         id: 6,
         name: 'Ледяной уровень',
@@ -101,7 +101,7 @@ const LEVELS = [
         message: 'Разбей 20 льдин за 22 хода! 🏔️'
     },
 
-    // ===== УРОВЕНЬ 11-15: С ИНГРЕДИЕНТАМИ =====
+    // ===== УРОВЕНЬ 11-15: С ИНГРЕДИЕНТАМИ (collect) =====
     {
         id: 11,
         name: 'Сбор яблок',
@@ -158,7 +158,7 @@ const LEVELS = [
         message: 'Собери 18 🟣 фигур за 20 ходов!'
     },
 
-    // ===== УРОВЕНЬ 16-20: С БОССАМИ =====
+    // ===== УРОВЕНЬ 16-20: С БОССАМИ (boss) =====
     {
         id: 16,
         name: 'Босс-слизень',
@@ -210,7 +210,7 @@ const LEVELS = [
         message: 'Активируй 10 бомб за 25 ходов! ⚡'
     },
 
-    // ===== УРОВЕНЬ 21-25: КОМБО =====
+    // ===== УРОВЕНЬ 21-25: КОМБО (combo) =====
     {
         id: 21,
         name: 'Цепная реакция',
@@ -409,30 +409,9 @@ function createBoardWithBlocks(blocksCount) {
         const c = Math.floor(Math.random() * COLS);
         
         if (newBoard[r][c] !== -1 && !blocks.some(b => b.r === r && b.c === c)) {
-            let hasMatch = false;
-            let count = 1;
-            for (let col = c - 1; col >= 0; col--) {
-                if (newBoard[r][col] === newBoard[r][c]) count++; else break;
-            }
-            for (let col = c + 1; col < COLS; col++) {
-                if (newBoard[r][col] === newBoard[r][c]) count++; else break;
-            }
-            if (count >= 3) hasMatch = true;
-            
-            count = 1;
-            for (let row = r - 1; row >= 0; row--) {
-                if (newBoard[row][c] === newBoard[r][c]) count++; else break;
-            }
-            for (let row = r + 1; row < ROWS; row++) {
-                if (newBoard[row][c] === newBoard[r][c]) count++; else break;
-            }
-            if (count >= 3) hasMatch = true;
-            
-            if (!hasMatch) {
-                blocks.push({r, c});
-                newBoard[r][c] = -2;
-                placed++;
-            }
+            blocks.push({r, c});
+            newBoard[r][c] = -2;
+            placed++;
         }
     }
     
@@ -440,7 +419,7 @@ function createBoardWithBlocks(blocksCount) {
 }
 
 // ============================================================
-// 6. ПОИСК СОВПАДЕНИЙ (оставляем как было)
+// 6. ПОИСК СОВПАДЕНИЙ (БЕЗ ИЗМЕНЕНИЙ)
 // ============================================================
 function findMatchGroups() {
     const groups = [];
@@ -1167,34 +1146,49 @@ function checkLevelResult(won) {
     
     const level = LEVELS[currentLevel];
     let isComplete = false;
-    let message = '';
     
-    if (won) {
-        isComplete = true;
-        message = `✅ Уровень пройден!`;
-    } else {
-        // Проверяем условия
+    // Проверяем условия в зависимости от типа уровня
+    switch (level.type) {
+        case 'moves':
+        case 'time':
+            if (score >= level.goal) isComplete = true;
+            break;
+        case 'blocks':
+            if (blocksRemaining <= 0) isComplete = true;
+            break;
+        case 'collect':
+            if (collectedCount >= level.collectCount) isComplete = true;
+            break;
+        case 'boss':
+            if (bombsActivated >= level.bombsRequired) isComplete = true;
+            break;
+        case 'combo':
+            if (totalCombos >= level.combosRequired) isComplete = true;
+            break;
+    }
+    
+    // Если победили
+    if (isComplete) {
+        let message = '';
         switch (level.type) {
             case 'moves':
             case 'time':
-                if (score >= level.goal) isComplete = true;
+                message = `Вы набрали ${score} очков!`;
                 break;
             case 'blocks':
-                if (blocksRemaining <= 0) isComplete = true;
+                message = `Все блоки разбиты!`;
                 break;
             case 'collect':
-                if (collectedCount >= level.collectCount) isComplete = true;
+                message = `Собрано ${collectedCount} фигур!`;
                 break;
             case 'boss':
-                if (bombsActivated >= level.bombsRequired) isComplete = true;
+                message = `Активировано ${bombsActivated} бомб!`;
                 break;
             case 'combo':
-                if (totalCombos >= level.combosRequired) isComplete = true;
+                message = `Сделано ${totalCombos} комбо!`;
                 break;
         }
-    }
-    
-    if (isComplete) {
+        
         showModal(
             '✅ Уровень пройден!',
             message,
@@ -1204,17 +1198,27 @@ function checkLevelResult(won) {
                 startLevel();
             }
         );
-    } else {
-        let requirement = getLevelRequirement(level);
-        showModal(
-            '❌ Попробуйте снова!',
-            `Нужно: ${requirement}\nПопробуйте ещё раз!`,
-            '🔄 Повторить уровень',
-            function() {
-                startLevel();
-            }
-        );
+        return;
     }
+    
+    // Проверяем, не провалили ли уровень
+    if (level.type === 'moves' || level.type === 'blocks' || 
+        level.type === 'collect' || level.type === 'boss' || level.type === 'combo') {
+        if (moves <= 0) {
+            let requirement = getLevelRequirement(level);
+            showModal(
+                '❌ Попробуйте снова!',
+                `Ходы закончились!\nНужно: ${requirement}`,
+                '🔄 Повторить уровень',
+                function() {
+                    startLevel();
+                }
+            );
+            return;
+        }
+    }
+    
+    // Для time проверка на 0 времени уже есть в таймере
 }
 
 // ============================================================
@@ -1227,7 +1231,7 @@ function processBoardWithAnimation() {
     bombSpawnTimer = 0;
 
     function step() {
-        // Проверяем блоки рядом с совпадениями
+        // Проверяем блоки рядом с совпадениями (только для уровней с блоками)
         if (currentLevel < LEVELS.length && LEVELS[currentLevel].type === 'blocks') {
             const matches = findMatchGroups();
             for (let match of matches) {
@@ -1253,7 +1257,7 @@ function processBoardWithAnimation() {
         
         const result = processMatches();
         
-        // Подсчёт комбо
+        // Подсчёт комбо (только для уровней с комбо)
         if (currentLevel < LEVELS.length && LEVELS[currentLevel].type === 'combo') {
             if (result.removed.length > 0) {
                 totalCombos++;
@@ -1261,7 +1265,7 @@ function processBoardWithAnimation() {
             }
         }
         
-        // Подсчёт активированных бомб
+        // Подсчёт активированных бомб (только для уровней с боссами)
         if (currentLevel < LEVELS.length && LEVELS[currentLevel].type === 'boss') {
             if (result.explosions.length > 0) {
                 bombsActivated += result.explosions.length;
@@ -1269,7 +1273,7 @@ function processBoardWithAnimation() {
             }
         }
         
-        // Подсчёт собранных ингредиентов
+        // Подсчёт собранных ингредиентов (только для уровней с коллекцией)
         if (currentLevel < LEVELS.length && LEVELS[currentLevel].type === 'collect') {
             const level = LEVELS[currentLevel];
             for (let cell of result.removed) {
@@ -1440,8 +1444,6 @@ function handleCellClick(x, y) {
     const row = Math.floor(y / TILE_SIZE);
     
     if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return;
-    
-    // Нельзя кликать на блоки
     if (board[row][col] === -2) return;
 
     if (selectedRow === -1) {
@@ -1465,7 +1467,6 @@ function handleCellClick(x, y) {
         const r1 = selectedRow, c1 = selectedCol;
         const r2 = row, c2 = col;
         
-        // Нельзя менять с блоком
         if (board[r2][c2] === -2) {
             selectedRow = -1;
             selectedCol = -1;

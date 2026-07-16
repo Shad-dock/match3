@@ -993,51 +993,33 @@ function processBoardWithAnimation() {
     bombSpawnTimer = 0;
 
     function step() {
-        // Сохраняем удаляемые клетки ДО обработки
-        const matchesBeforeRemove = findMatchGroups();
-        
-        // Подсчёт собранных фигур для уровней на сбор (ДО удаления)
+        // ==== СОХРАНЯЕМ КОПИЮ ДОСКИ ДЛЯ ПОДСЧЁТА ====
+        let boardCopy = [];
         if (currentMode === 'levels' && currentLevel < LEVELS.length) {
             const level = LEVELS[currentLevel];
             if (level.type === 'collect') {
-                // Считаем обычные совпадения
-                for (let match of matchesBeforeRemove) {
-                    for (let cell of match.cells) {
-                        if (board[cell.r] && board[cell.r][cell.c] === level.collectColor) {
-                            collectedCount++;
-                            updateLevelUI();
-                        }
-                    }
-                }
+                // Сохраняем копию доски перед удалением
+                boardCopy = board.map(row => [...row]);
             }
         }
         
         const result = processMatches();
         
-        // ==== СЧИТАЕМ ФИГУРЫ, УДАЛЁННЫЕ БОМБАМИ ====
+        // ==== ПОДСЧЁТ СОБРАННЫХ ФИГУР (ВКЛЮЧАЯ БОМБЫ) ====
         if (currentMode === 'levels' && currentLevel < LEVELS.length) {
             const level = LEVELS[currentLevel];
             if (level.type === 'collect') {
-                // Проверяем все удалённые клетки (включая те, что убраны бомбами)
-                // Для этого проходим по result.removed и проверяем цвет ДО удаления
-                // Но у нас уже нет цвета... Используем другой подход:
-                // Проверяем все клетки, которые были удалены бомбами
-                for (let exp of result.explosions) {
-                    // Взрыв бомбы удаляет целый ряд или столбец
-                    // Проверяем все клетки в этом ряду/столбце
-                    if (exp.type === 'horizontal') {
-                        for (let col = 0; col < COLS; col++) {
-                            // Проверяем, была ли эта клетка удалена
-                            const key = `${exp.r},${col}`;
-                            if (result.removed.some(c => c.r === exp.r && c.c === col)) {
-                                // Но мы не знаем цвет... используем другой метод
-                            }
-                        }
+                // Проходим по всем удалённым клеткам
+                for (let cell of result.removed) {
+                    // Проверяем цвет в сохранённой копии доски
+                    if (boardCopy[cell.r] && boardCopy[cell.r][cell.c] === level.collectColor) {
+                        collectedCount++;
+                        updateLevelUI();
                     }
                 }
             }
         }
-        // ==========================================
+        // ================================================
         
         if (result.removed.length === 0) {
             isProcessing = false;
@@ -1201,7 +1183,6 @@ function processBoardWithAnimation() {
 
     step();
 }
-
 // ============================================================
 // 13. ОБРАБОТКА КЛИКОВ
 // ============================================================

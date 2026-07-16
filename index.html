@@ -18,9 +18,6 @@
 
     <!-- ИГРОВОЙ UI -->
     <div id="gameUI" style="display: none;">
-        <!-- Кнопка назад снаружи -->
-        <button id="backBtn" class="back-btn">← Назад</button>
-        
         <div id="app">
             <h1>🍬 3 в ряд</h1>
             
@@ -45,7 +42,11 @@
             </div>
             
             <canvas id="gameCanvas"></canvas>
-            <button id="resetBtn">🔄 Новая игра</button>
+            
+            <div id="buttonsRow">
+                <button id="backBtn" class="game-btn back-btn">← Назад</button>
+                <button id="resetBtn" class="game-btn">🔄 Новая игра</button>
+            </div>
         </div>
     </div>
 

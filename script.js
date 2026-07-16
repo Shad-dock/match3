@@ -1539,7 +1539,7 @@ function initGame() {
 // 16. ЗАПУСК
 // ============================================================
 document.addEventListener('DOMContentLoaded', initGame);
-console.log('🎮 Игра 3 в ряд запущена!');
+console.log('🎮 Игра 3 в ряд запущена! 3.0');
 console.log('📊 Всего уровней: ' + LEVELS.length);
 console.log('♾️ Бесконечный режим - набирай очки без ограничений');
 console.log('🎯 Режим уровней - 25 уровней с разными механиками');

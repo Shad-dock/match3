@@ -2,35 +2,8 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreSpan = document.getElementById('scoreValue');
 
-// --- АДАПТАЦИЯ ПОД ТЕЛЕФОН ---
-// Автоматический расчёт размера клетки
-function getTileSize() {
-    const maxWidth = window.innerWidth - 40;
-    const maxHeight = window.innerHeight - 200;
-    const size = Math.min(maxWidth, maxHeight) / 8;
-    return Math.max(30, Math.min(60, size));
-}
-
-let TILE_SIZE = getTileSize();
 const ROWS = 8;
 const COLS = 8;
-
-// Обновляем размер canvas при изменении окна
-function resizeCanvas() {
-    TILE_SIZE = getTileSize();
-    canvas.width = COLS * TILE_SIZE;
-    canvas.height = ROWS * TILE_SIZE;
-    drawBoard();
-}
-
-window.addEventListener('resize', resizeCanvas);
-
-const EMOJIS = ['🍎', '🍊', '🍇', '🍒', '🍉'];
-const BOMB_TYPES = {
-    HORIZONTAL: 'HORIZONTAL',
-    VERTICAL: 'VERTICAL'
-};
-
 let board = [];
 let score = 0;
 let selectedRow = -1;
@@ -41,8 +14,34 @@ let isProcessing = false;
 let particles = [];
 let matchCells = [];
 let dropAnimations = [];
-let bombExplosions = [];
-let bombSpawned = null; // {row, col, color, type}
+let bombSpawned = null;
+
+const EMOJIS = ['🍎', '🍊', '🍇', '🍒', '🍉'];
+const BOMB_TYPES = {
+    HORIZONTAL: 'HORIZONTAL',
+    VERTICAL: 'VERTICAL'
+};
+
+// --- АДАПТАЦИЯ ПОД ТЕЛЕФОН ---
+function getTileSize() {
+    const maxWidth = window.innerWidth - 40;
+    const maxHeight = window.innerHeight - 200;
+    const size = Math.min(maxWidth, maxHeight) / 8;
+    return Math.max(30, Math.min(60, size));
+}
+
+let TILE_SIZE = getTileSize();
+
+function resizeCanvas() {
+    TILE_SIZE = getTileSize();
+    canvas.width = COLS * TILE_SIZE;
+    canvas.height = ROWS * TILE_SIZE;
+    if (board && board.length > 0) {
+        drawBoard();
+    }
+}
+
+window.addEventListener('resize', resizeCanvas);
 
 // --- Создание доски ---
 function createBoard() {
@@ -182,8 +181,7 @@ function activateBombs() {
         for (let c = 0; c < COLS; c++) {
             const val = board[r][c];
             if (val === 'HORIZONTAL' || val === 'VERTICAL') {
-                // Проверяем, есть ли рядом клетки того же цвета, что и бомба
-                // (цвет бомбы хранится отдельно, но у нас его нет, поэтому проверяем соседей)
+                // Проверяем, есть ли рядом клетки того же цвета
                 let hasMatch = false;
                 const directions = [[0,1],[0,-1],[1,0],[-1,0]];
                 for (let [dr, dc] of directions) {
@@ -661,13 +659,14 @@ document.getElementById('resetBtn').addEventListener('click', function() {
     dropAnimations = [];
     bombSpawned = null;
     updateScore();
-    resizeCanvas();
+    drawBoard();
 });
 
 // --- Запуск ---
-resizeCanvas();
+// Сначала создаём доску, потом настраиваем размер
 board = createBoard();
+resizeCanvas();
 drawBoard();
-console.log('Игра запущена!');
+console.log('Игра запущена!2.1');
 console.log('Собери 4 в ряд, чтобы создать бомбу!');
 console.log('Бомба активируется при соединении с цветом');

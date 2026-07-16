@@ -1,5 +1,5 @@
 // ============================================================
-// 1. ДАННЫЕ УРОВНЕЙ
+// 1. ДАННЫЕ УРОВНЕЙ (5 уровней)
 // ============================================================
 const LEVELS = [
     {
@@ -632,8 +632,54 @@ function showMessage(text, duration = 2000) {
     }, duration);
 }
 
+function showModal(title, messageText, buttonText, callback) {
+    const overlay = document.getElementById('gameOverlay');
+    const titleEl = document.getElementById('overlayTitle');
+    const messageEl = document.getElementById('overlayMessage');
+    const btn = document.getElementById('overlayBtn');
+    
+    titleEl.textContent = title;
+    messageEl.textContent = messageText;
+    btn.textContent = buttonText || 'OK';
+    btn.style.display = 'block';
+    overlay.style.display = 'flex';
+    
+    btn.onclick = function() {
+        overlay.style.display = 'none';
+        if (callback) callback();
+    };
+}
+
 // ============================================================
-// 10. РЕЖИМЫ ИГРЫ
+// 10. ВОЗВРАТ В МЕНЮ
+// ============================================================
+function goToMenu() {
+    // Останавливаем таймер, если он есть
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    if (levelTimerInterval) {
+        clearInterval(levelTimerInterval);
+        levelTimerInterval = null;
+    }
+    
+    // Сбрасываем состояние
+    isProcessing = false;
+    particles = [];
+    matchCells = [];
+    dropAnimations = [];
+    bombSpawned = null;
+    bombSpawnTimer = 0;
+    isAnimating = false;
+    currentLevel = 0;
+    
+    document.getElementById('gameUI').style.display = 'none';
+    document.getElementById('menuOverlay').style.display = 'flex';
+}
+
+// ============================================================
+// 11. РЕЖИМЫ ИГРЫ
 // ============================================================
 function startEndlessMode() {
     currentMode = 'endless';
@@ -649,10 +695,21 @@ function startEndlessMode() {
     bombSpawnTimer = 0;
     isAnimating = false;
     
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    if (levelTimerInterval) {
+        clearInterval(levelTimerInterval);
+        levelTimerInterval = null;
+    }
+    
     document.getElementById('movesContainer').style.display = 'none';
     document.getElementById('timerContainer').style.display = 'none';
     document.getElementById('levelInfo').style.display = 'none';
     document.getElementById('scoreContainer').style.display = 'block';
+    document.getElementById('levelTitle').textContent = '♾️ Бесконечный режим';
+    document.getElementById('levelGoal').textContent = 'Набирай очки!';
     
     updateScore();
     drawBoard();
@@ -665,12 +722,22 @@ let levelTimerInterval = null;
 function startLevelMode() {
     currentMode = 'levels';
     currentLevel = 0;
+    document.getElementById('levelInfo').style.display = 'flex';
     startLevel();
 }
 
 function startLevel() {
     if (currentLevel >= LEVELS.length) {
-        showMessage('🎉 Поздравляем! Вы прошли все уровни! 🎉', 5000);
+        // Все уровни пройдены!
+        showModal(
+            '🎉 Поздравляем! 🎉',
+            'Вы прошли все 5 уровней!\nХотите пройти заново?',
+            '🔄 Пройти заново',
+            function() {
+                currentLevel = 0;
+                startLevel();
+            }
+        );
         return;
     }
     
@@ -691,10 +758,14 @@ function startLevel() {
         clearInterval(levelTimerInterval);
         levelTimerInterval = null;
     }
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
     
     document.getElementById('levelInfo').style.display = 'flex';
     document.getElementById('scoreContainer').style.display = 'block';
-    levelTitleSpan.textContent = level.name;
+    levelTitleSpan.textContent = `${level.name} (${currentLevel + 1}/${LEVELS.length})`;
     levelGoalSpan.textContent = `Цель: ${level.goal} очков`;
     
     if (level.type === 'moves') {
@@ -734,25 +805,37 @@ function checkLevelResult(won) {
         clearInterval(levelTimerInterval);
         levelTimerInterval = null;
     }
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
     
     const level = LEVELS[currentLevel];
     
     if (won || score >= level.goal) {
-        showMessage(`✅ Уровень пройден! +${score} очков`, 2000);
-        currentLevel++;
-        setTimeout(() => {
-            startLevel();
-        }, 2500);
+        showModal(
+            '✅ Уровень пройден!',
+            `Вы набрали ${score} очков!\nПереходим к следующему уровню...`,
+            'Продолжить →',
+            function() {
+                currentLevel++;
+                startLevel();
+            }
+        );
     } else {
-        showMessage(`❌ Попробуйте снова! Нужно ${level.goal} очков`, 3000);
-        setTimeout(() => {
-            startLevel();
-        }, 3000);
+        showModal(
+            '❌ Попробуйте снова!',
+            `Нужно было набрать ${level.goal} очков, а вы набрали ${score}.\nПопробуйте ещё раз!`,
+            '🔄 Повторить уровень',
+            function() {
+                startLevel();
+            }
+        );
     }
 }
 
 // ============================================================
-// 11. ОБРАБОТКА ИГРОВОГО ЦИКЛА
+// 12. ОБРАБОТКА ИГРОВОГО ЦИКЛА
 // ============================================================
 function processBoardWithAnimation() {
     if (isProcessing) return;
@@ -900,7 +983,7 @@ function processBoardWithAnimation() {
 }
 
 // ============================================================
-// 12. ОБРАБОТКА КЛИКОВ
+// 13. ОБРАБОТКА КЛИКОВ
 // ============================================================
 function handleClick(e) {
     if (isProcessing) return;
@@ -971,7 +1054,7 @@ function handleCellClick(x, y) {
 }
 
 // ============================================================
-// 13. ИНИЦИАЛИЗАЦИЯ
+// 14. ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 function initGame() {
     setupCanvas();
@@ -987,6 +1070,11 @@ function initGame() {
         document.getElementById('menuOverlay').style.display = 'none';
         document.getElementById('gameUI').style.display = 'block';
         startLevelMode();
+    });
+    
+    // Кнопка "Назад" в игре
+    document.getElementById('backBtn').addEventListener('click', function() {
+        goToMenu();
     });
     
     document.getElementById('resetBtn').addEventListener('click', function() {
@@ -1006,9 +1094,11 @@ function initGame() {
 }
 
 // ============================================================
-// 14. ЗАПУСК
+// 15. ЗАПУСК
 // ============================================================
 document.addEventListener('DOMContentLoaded', initGame);
 console.log('🎮 Игра 3 в ряд запущена!');
-console.log('Режимы: бесконечный и уровни');
-console.log('Бомбы активируются при 3+ в ряд с цветом!');
+console.log('📊 Всего уровней: ' + LEVELS.length);
+console.log('♾️ Бесконечный режим - набирай очки без ограничений');
+console.log('🎯 Режим уровней - 5 уровней с разными условиями');
+console.log('💣 Бомбы активируются при 3+ в ряд с цветом!');

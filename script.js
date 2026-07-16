@@ -970,27 +970,32 @@ function processBoardWithAnimation() {
     bombSpawnTimer = 0;
 
     function step() {
-        const result = processMatches();
+        // Сохраняем удаляемые клетки ДО обработки, чтобы проверить их цвета
+        const matchesBeforeRemove = findMatchGroups();
         
-        // Подсчёт собранных фигур для уровней на сбор
+        // Подсчёт собранных фигур для уровней на сбор (ДО удаления)
         if (currentMode === 'levels' && currentLevel < LEVELS.length) {
             const level = LEVELS[currentLevel];
             if (level.type === 'collect') {
-                for (let cell of result.removed) {
-                    if (board[cell.r] && board[cell.r][cell.c] === level.collectColor) {
-                        collectedCount++;
-                        updateLevelUI();
+                for (let match of matchesBeforeRemove) {
+                    for (let cell of match.cells) {
+                        // Проверяем цвет ДО того, как клетка будет удалена
+                        if (board[cell.r] && board[cell.r][cell.c] === level.collectColor) {
+                            collectedCount++;
+                            updateLevelUI();
+                        }
                     }
                 }
             }
         }
+        
+        const result = processMatches();
         
         if (result.removed.length === 0) {
             isProcessing = false;
             bombSpawned = null;
             bombSpawnTimer = 0;
             
-            // Проверяем условия уровня
             if (currentMode === 'levels') {
                 checkLevelResult(false);
             }

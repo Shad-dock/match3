@@ -162,6 +162,10 @@ let canvasWidth = 0;
 let canvasHeight = 0;
 let dpr = 1;
 
+// --- Фоновое изображение ---
+let bgImage = null;
+let bgImageLoaded = false;
+
 // ============================================================
 // 3. ФУНКЦИИ ДЛЯ БОМБ
 // ============================================================
@@ -211,6 +215,24 @@ function setupCanvas() {
 }
 
 window.addEventListener('resize', setupCanvas);
+
+// ============================================================
+// 4.5 ЗАГРУЗКА ФОНОВОГО ИЗОБРАЖЕНИЯ
+// ============================================================
+function loadBackgroundImage(url) {
+    bgImage = new Image();
+    bgImage.crossOrigin = 'anonymous';
+    bgImage.onload = function() {
+        bgImageLoaded = true;
+        drawBoard();
+        console.log('✅ Фоновое изображение загружено!');
+    };
+    bgImage.onerror = function() {
+        console.warn('⚠️ Не удалось загрузить фоновое изображение, используется стандартный фон');
+        bgImageLoaded = false;
+    };
+    bgImage.src = url;
+}
 
 // ============================================================
 // 5. СОЗДАНИЕ ДОСКИ
@@ -526,6 +548,14 @@ function updateParticles() {
 function drawBoard() {
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+// ==== РИСУЕМ ФОНОВОЕ ИЗОБРАЖЕНИЕ ====
+    if (bgImageLoaded && bgImage) {
+        ctx.drawImage(bgImage, 0, 0, canvasWidth, canvasHeight);
+    } else {
+        ctx.fillStyle = '#3b2b4a';
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    }
     
     if (bombSpawnTimer > 0) {
         bombSpawnTimer--;
@@ -1261,6 +1291,10 @@ function handleCellClick(x, y) {
 // ============================================================
 function initGame() {
     setupCanvas();
+
+ // ==== ЗАГРУЗКА ФОНА ====
+    loadBackgroundImage('https://ru.pngtree.com/free-backgrounds-photos/%D1%81%D0%B8%D0%BD%D0%B8%D0%B5-%D0%BA%D0%B0%D1%80%D1%82%D0%B8%D0%BD%D0%BA%D0%B8');
+    // =========================
     
     document.getElementById('btnEndless').addEventListener('click', function() {
         document.getElementById('menuOverlay').style.display = 'none';

@@ -167,12 +167,24 @@ function playMatchSound() {
         oscillator.connect(gainNode);
         gainNode.connect(audioCtx.destination);
         
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, now);
-        gainNode.gain.setValueAtTime(0.1, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(523, now);
+        gainNode.gain.setValueAtTime(0.08, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
         oscillator.start(now);
-        oscillator.stop(now + 0.1);
+        oscillator.stop(now + 0.15);
+        
+        // Эхо
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(659, now + 0.1);
+        gain2.gain.setValueAtTime(0.04, now + 0.1);
+        gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc2.start(now + 0.1);
+        osc2.stop(now + 0.2);
     } catch(e) {}
 }
 

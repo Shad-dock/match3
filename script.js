@@ -146,6 +146,45 @@ let isAnimating = false;
 let lastFrameTime = 0;
 const TARGET_FPS = 30;
 
+// ============================================================
+// 2.5 ЗВУК УДАЛЕНИЯ ФИГУР
+// ============================================================
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+}
+
+function playMatchSound() {
+    try {
+        initAudio();
+        
+        const now = audioCtx.currentTime;
+        
+        // Две ноты для приятного звука удаления
+        const notes = [523, 659]; // До и Ми
+        for (let i = 0; i < notes.length; i++) {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(notes[i], now + i * 0.08);
+            
+            gainNode.gain.setValueAtTime(0.12, now + i * 0.08);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.12);
+            
+            oscillator.start(now + i * 0.08);
+            oscillator.stop(now + i * 0.08 + 0.12);
+        }
+    } catch(e) {
+        // Если звук не работает — игнорируем
+    }
+}
+
 // --- Цвета ---
 const COLORS = [
     { id: 0, emoji: '🔴', name: 'Красный', hex: '#ff4444' },
@@ -1044,6 +1083,12 @@ function processBoardWithAnimation() {
         }
         
         const result = processMatches();
+
+        // ==== ЗВУК ПРИ УДАЛЕНИИ ====
+        if (result.removed.length > 0) {
+            playMatchSound();
+        }
+        // ===========================
         
         // ==== ПОДСЧЁТ СОБРАННЫХ ФИГУР (ВКЛЮЧАЯ БОМБЫ) ====
         if (currentMode === 'levels' && currentLevel < LEVELS.length) {
@@ -1338,6 +1383,15 @@ function initGame() {
     
     document.getElementById('menuOverlay').style.display = 'flex';
     document.getElementById('gameUI').style.display = 'none';
+
+        // Инициализация звука после первого клика
+    document.addEventListener('click', function() {
+        initAudio();
+    }, { once: true });
+    
+    document.addEventListener('touchstart', function() {
+        initAudio();
+    }, { once: true });
 }
 
 // ============================================================

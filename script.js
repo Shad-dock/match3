@@ -1302,7 +1302,7 @@ function initGame() {
     board = createBoard();
 
  // ==== ЗАГРУЗКА ФОНА ====
-    loadBackgroundImage('фон.jpg');
+    //loadBackgroundImage('фон.jpg');
     // =========================
     
     document.getElementById('btnEndless').addEventListener('click', function() {

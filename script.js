@@ -148,6 +148,10 @@ const TARGET_FPS = 30;
 
 let soundEnabled = true;
 
+// --- Рекорды (сохраняются в localStorage) ---
+let bestScore = 0;
+let bestLevel = 0;
+
 // ============================================================
 // 2.5 ЗВУК УДАЛЕНИЯ ФИГУР
 // ============================================================
@@ -264,6 +268,107 @@ let dpr = 1;
 // --- Фоновое изображение ---
 let bgImage = null;
 let bgImageLoaded = false;
+
+// ============================================================
+// СИСТЕМА РЕКОРДОВ (сохраняются в localStorage)
+// ============================================================
+
+// Загрузка рекордов из localStorage (даже после перезагрузки)
+function loadRecords() {
+    try {
+        const savedBestScore = localStorage.getItem('match3_bestScore');
+        const savedBestLevel = localStorage.getItem('match3_bestLevel');
+        
+        if (savedBestScore !== null) {
+            bestScore = parseInt(savedBestScore) || 0;
+        }
+        if (savedBestLevel !== null) {
+            bestLevel = parseInt(savedBestLevel) || 0;
+        }
+        
+        console.log(`🏆 Рекорды загружены: ${bestScore} очков, ${bestLevel} уровень`);
+    } catch(e) {
+        console.warn('⚠️ Не удалось загрузить рекорды');
+    }
+}
+
+// Сохранение рекордов в localStorage (навсегда)
+function saveRecords() {
+    try {
+        localStorage.setItem('match3_bestScore', String(bestScore));
+        localStorage.setItem('match3_bestLevel', String(bestLevel));
+        console.log(`💾 Рекорды сохранены: ${bestScore} очков, ${bestLevel} уровень`);
+    } catch(e) {
+        console.warn('⚠️ Не удалось сохранить рекорды');
+    }
+}
+
+// Обновление рекорда в бесконечном режиме
+function updateBestScore(currentScore) {
+    if (currentScore > bestScore) {
+        bestScore = currentScore;
+        saveRecords(); // ← сохраняется НАВСЕГДА
+        //showBestScoreNotification('🏆 Новый рекорд!', `${bestScore} очков`);
+        return true;
+    }
+    return false;
+}
+
+// Обновление рекорда в режиме уровней
+function updateBestLevel(currentLevel) {
+    const levelNumber = currentLevel + 1;
+    if (levelNumber > bestLevel) {
+        bestLevel = levelNumber;
+        saveRecords(); // ← сохраняется НАВСЕГДА
+        //showBestScoreNotification('🏆 Новый рекорд!', `${bestLevel} уровень`);
+        return true;
+    }
+    return false;
+}
+
+
+
+// Показать рекорды в меню
+function showRecordsInMenu() {
+    let recordsEl = document.getElementById('recordsDisplay');
+    if (!recordsEl) {
+        recordsEl = document.createElement('div');
+        recordsEl.id = 'recordsDisplay';
+        recordsEl.style.cssText = `
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 12px;
+            color: #c4b0e0;
+            font-size: 15px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        `;
+        const menuContainer = document.getElementById('menuContainer');
+        const buttons = menuContainer.querySelectorAll('.menu-btn');
+        const lastButton = buttons[buttons.length - 1];
+        lastButton.after(recordsEl);
+    }
+    
+    loadRecords();
+    recordsEl.innerHTML = `
+        🏆 <span style="color: #ffd966; font-weight: bold;">${bestScore}</span> очков
+        &nbsp;|&nbsp;
+        🎯 <span style="color: #ffd966; font-weight: bold;">${bestLevel}</span> уровень
+    `;
+}
+
+// Сброс рекордов (для тестирования)
+function resetRecords() {
+    if (confirm('Удалить все рекорды?')) {
+        localStorage.removeItem('match3_bestScore');
+        localStorage.removeItem('match3_bestLevel');
+        bestScore = 0;
+        bestLevel = 0;
+        showRecordsInMenu();
+        console.log('🗑️ Рекорды сброшены');
+    }
+}
 
 // ============================================================
 // 3. ФУНКЦИИ ДЛЯ БОМБ
@@ -894,6 +999,7 @@ function goToMenu() {
 // ============================================================
 function startEndlessMode() {
     currentMode = 'endless';
+    loadRecords();
     board = createBoard();
     score = 0;
     selectedRow = -1;
@@ -1051,6 +1157,8 @@ function checkLevelResult(won) {
     
     if (isComplete) {
 	playSoundIfEnabled(playWinSound);
+	// Проверка рекорда уровня (сохраняется навсегда)
+        updateBestLevel(currentLevel);
         if (levelTimerInterval) {
             clearInterval(levelTimerInterval);
             levelTimerInterval = null;
@@ -1198,6 +1306,11 @@ function processBoardWithAnimation() {
         const points = result.removed.length * 10 + result.explosions.length * 50;
         score += points;
         updateScore();
+
+	// Проверка рекорда (сохраняется навсегда)
+	if (currentMode === 'endless') {
+    		updateBestScore(score);
+	}
         
         if (currentMode === 'levels') {
             const level = LEVELS[currentLevel];
@@ -1409,6 +1522,8 @@ function initGame() {
 
     board = createBoard();
 
+    loadRecords();
+
  // ==== ЗАГРУЗКА ФОНА ====
     //loadBackgroundImage('фон.jpg');
     // =========================
@@ -1441,11 +1556,9 @@ function initGame() {
         shareResult();
     });
 
-    // ===== ДОБАВЬТЕ ЭТОТ БЛОК =====
     document.getElementById('soundBtn').addEventListener('click', function() {
         toggleSound();
     });
-    // ==============================
     
     canvas.addEventListener('click', handleClick);
     canvas.addEventListener('touchstart', handleTouch, { passive: false });
@@ -1461,6 +1574,10 @@ function initGame() {
     document.addEventListener('touchstart', function() {
         initAudio();
     }, { once: true });
+
+    setTimeout(() => {
+            showRecordsInMenu();
+    }, 100);
 }
 
 // ============================================================

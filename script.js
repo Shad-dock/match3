@@ -224,7 +224,9 @@ function loadBackgroundImage(url) {
     bgImage.crossOrigin = 'anonymous';
     bgImage.onload = function() {
         bgImageLoaded = true;
-        drawBoard();
+        if (board && board.length > 0) {
+            drawBoard();
+        }
         console.log('✅ Фоновое изображение загружено!');
     };
     bgImage.onerror = function() {
@@ -546,6 +548,11 @@ function updateParticles() {
 // 8. ОТРИСОВКА
 // ============================================================
 function drawBoard() {
+
+    if (!board || board.length === 0) {
+        return;
+    }
+    
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
@@ -1291,6 +1298,8 @@ function handleCellClick(x, y) {
 // ============================================================
 function initGame() {
     setupCanvas();
+
+    board = createBoard();
 
  // ==== ЗАГРУЗКА ФОНА ====
     loadBackgroundImage('Герц-милашка.jpg');

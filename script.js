@@ -1293,7 +1293,7 @@ function initGame() {
     setupCanvas();
 
  // ==== ЗАГРУЗКА ФОНА ====
-    loadBackgroundImage('Герц-миашка.jpg');
+    loadBackgroundImage('Герц-милашка.jpg');
     // =========================
     
     document.getElementById('btnEndless').addEventListener('click', function() {

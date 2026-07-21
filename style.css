@@ -5,7 +5,11 @@
 }
 
 body {
-    background: linear-gradient(135deg, #1e1e2f, #2a1e3a);
+    background-image: url('Герц-милашка.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
     display: flex;
     justify-content: center;
     align-items: center;

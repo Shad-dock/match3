@@ -750,6 +750,7 @@ function goToMenu() {
     
     document.getElementById('gameUI').style.display = 'none';
     document.getElementById('menuOverlay').style.display = 'flex';
+    document.getElementById('shareBtn').style.display = 'none';
 }
 
 // ============================================================
@@ -785,6 +786,7 @@ function startEndlessMode() {
     document.getElementById('scoreContainer').style.display = 'block';
     document.getElementById('levelTitle').textContent = '♾️ Бесконечный режим';
     document.getElementById('levelGoal').textContent = 'Набирай очки!';
+    document.getElementById('shareBtn').style.display = 'block';
     
     updateScore();
     drawBoard();
@@ -799,6 +801,7 @@ function startLevelMode() {
     currentLevel = 0;
     collectedCount = 0;
     document.getElementById('levelInfo').style.display = 'flex';
+    document.getElementById('shareBtn').style.display = 'none';
     startLevel();
 }
 
@@ -1282,6 +1285,10 @@ function initGame() {
             startLevelMode();
         }
     });
+
+    document.getElementById('shareBtn').addEventListener('click', function() {
+    shareResult();
+    });
     
     canvas.addEventListener('click', handleClick);
     canvas.addEventListener('touchstart', handleTouch, { passive: false });
@@ -1290,6 +1297,91 @@ function initGame() {
     document.getElementById('gameUI').style.display = 'none';
 }
 
+// ============================================================
+// 16. ФУНКЦИЯ ШАРИНГА (скриншот)
+// ============================================================
+function shareResult() {
+    if (currentMode !== 'endless') return;
+    
+    // Создаём отдельный canvas для скриншота
+    const shareCanvas = document.createElement('canvas');
+    const shareCtx = shareCanvas.getContext('2d');
+    
+    // Размеры скриншота (шире и короче)
+    const width = 600;
+    const height = 480;
+    shareCanvas.width = width;
+    shareCanvas.height = height;
+    
+    // 1. Фон с градиентом
+    const gradient = shareCtx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, '#1e1e2f');
+    gradient.addColorStop(1, '#2a1e3a');
+    shareCtx.fillStyle = gradient;
+    shareCtx.fillRect(0, 0, width, height);
+    
+    // 2. Рамка
+    shareCtx.shadowColor = 'rgba(0,0,0,0.5)';
+    shareCtx.shadowBlur = 20;
+    shareCtx.strokeStyle = '#7b5ea7';
+    shareCtx.lineWidth = 4;
+    shareCtx.roundRect(25, 20, width - 50, height - 40, 20);
+    shareCtx.stroke();
+    shareCtx.shadowBlur = 0;
+    
+    // 3. Заголовок
+    shareCtx.fillStyle = '#f5e9ff';
+    shareCtx.font = 'bold 38px Segoe UI, Arial';
+    shareCtx.textAlign = 'center';
+    shareCtx.textBaseline = 'middle';
+    shareCtx.fillText('🍬 3 в ряд 🍬', width/2, 65);
+    
+    // 4. Очки с эмодзи вокруг
+    const centerY = 180;
+    const emojiSize = 50;
+    const offsetX = 120;
+    
+    // Эмодзи слева
+    shareCtx.font = `${emojiSize}px Arial`;
+    shareCtx.textAlign = 'center';
+    shareCtx.textBaseline = 'middle';
+    shareCtx.fillText('🎉', width/2 - offsetX, centerY - 20);
+    shareCtx.fillText('🎉', width/2 - offsetX, centerY + 40);
+    
+    // Само число
+    shareCtx.fillStyle = '#ffd966';
+    shareCtx.font = 'bold 68px Segoe UI, Arial';
+    shareCtx.textAlign = 'center';
+    shareCtx.textBaseline = 'middle';
+    shareCtx.fillText(score, width/2, centerY + 5);
+    
+    // Эмодзи справа
+    shareCtx.font = `${emojiSize}px Arial`;
+    shareCtx.fillText('🎉', width/2 + offsetX, centerY - 20);
+    shareCtx.fillText('🎉', width/2 + offsetX, centerY + 40);
+    
+    // 5. Подпись под числом
+    shareCtx.fillStyle = '#c4b0e0';
+    shareCtx.font = '20px Segoe UI, Arial';
+    shareCtx.textAlign = 'center';
+    shareCtx.textBaseline = 'middle';
+    shareCtx.fillText('ОЧКОВ В БЕСКОНЕЧНОМ РЕЖИМЕ!', width/2, 275);
+    
+    // 6. Дата (чуть выше, чтобы не было пустого места)
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    shareCtx.fillStyle = 'rgba(196, 176, 224, 0.4)';
+    shareCtx.font = '14px Segoe UI, Arial';
+    shareCtx.textAlign = 'center';
+    shareCtx.textBaseline = 'middle';
+    shareCtx.fillText(`📅 ${dateStr}`, width/2, 440);
+    
+    // Конвертируем в PNG и скачиваем
+    const link = document.createElement('a');
+    link.download = `match3_score_${score}.png`;
+    link.href = shareCanvas.toDataURL('image/png');
+    link.click();
+}
 // ============================================================
 // 15. ЗАПУСК
 // ============================================================

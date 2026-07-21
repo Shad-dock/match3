@@ -146,10 +146,13 @@ let isAnimating = false;
 let lastFrameTime = 0;
 const TARGET_FPS = 30;
 
+let soundEnabled = true;
+
 // ============================================================
 // 2.5 ЗВУК УДАЛЕНИЯ ФИГУР
 // ============================================================
 let audioCtx = null;
+//let soundEnabled = true;
 
 function initAudio() {
     if (!audioCtx) {
@@ -1047,7 +1050,7 @@ function checkLevelResult(won) {
     }
     
     if (isComplete) {
-	playWinSound();
+	playSoundIfEnabled(playWinSound);
         if (levelTimerInterval) {
             clearInterval(levelTimerInterval);
             levelTimerInterval = null;
@@ -1071,7 +1074,7 @@ function checkLevelResult(won) {
     
     if (level.type === 'collect' || level.type === 'moves') {
         if (moves <= 0) {
-		playLoseSound();
+		playSoundIfEnabled(playLoseSound);
             if (levelTimerInterval) {
                 clearInterval(levelTimerInterval);
                 levelTimerInterval = null;
@@ -1100,7 +1103,7 @@ function checkLevelResult(won) {
     }
     
     if (level.type === 'time' && timeLeft <= 0 && score < level.goal) {
-	playLoseSound();
+	playSoundIfEnabled(playLoseSound);
         if (levelTimerInterval) {
             clearInterval(levelTimerInterval);
             levelTimerInterval = null;
@@ -1146,7 +1149,7 @@ function processBoardWithAnimation() {
 
         // ==== ЗВУК ПРИ УДАЛЕНИИ ====
         if (result.removed.length > 0) {
-            playMatchSound();
+            playSoundIfEnabled(playMatchSound);
         }
         // ===========================
         
@@ -1435,8 +1438,14 @@ function initGame() {
     });
 
     document.getElementById('shareBtn').addEventListener('click', function() {
-    shareResult();
+        shareResult();
     });
+
+    // ===== ДОБАВЬТЕ ЭТОТ БЛОК =====
+    document.getElementById('soundBtn').addEventListener('click', function() {
+        toggleSound();
+    });
+    // ==============================
     
     canvas.addEventListener('click', handleClick);
     canvas.addEventListener('touchstart', handleTouch, { passive: false });
@@ -1444,7 +1453,7 @@ function initGame() {
     document.getElementById('menuOverlay').style.display = 'flex';
     document.getElementById('gameUI').style.display = 'none';
 
-        // Инициализация звука после первого клика
+    // Инициализация звука после первого клика
     document.addEventListener('click', function() {
         initAudio();
     }, { once: true });
@@ -1538,6 +1547,30 @@ function shareResult() {
     link.download = `match3_score_${score}.png`;
     link.href = shareCanvas.toDataURL('image/png');
     link.click();
+}
+
+// ============================================================
+// 17. УПРАВЛЕНИЕ ЗВУКОМ
+// ============================================================
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    const soundBtn = document.getElementById('soundBtn');
+    
+    if (soundEnabled) {
+        soundBtn.textContent = '🔊';
+        soundBtn.classList.remove('muted');
+        console.log('🔊 Звук включён');
+    } else {
+        soundBtn.textContent = '🔇';
+        soundBtn.classList.add('muted');
+        console.log('🔇 Звук выключен');
+    }
+}
+
+function playSoundIfEnabled(soundFunction) {
+    if (soundEnabled) {
+        soundFunction();
+    }
 }
 // ============================================================
 // 15. ЗАПУСК

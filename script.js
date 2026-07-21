@@ -188,6 +188,60 @@ function playMatchSound() {
     } catch(e) {}
 }
 
+function playWinSound() {
+    try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        const notes = [
+            { freq: 523, dur: 0.15 },  // До
+            { freq: 659, dur: 0.15 },  // Ми
+            { freq: 784, dur: 0.15 },  // Соль
+            { freq: 1047, dur: 0.3 }   // До (высокая)
+        ];
+        
+        for (let i = 0; i < notes.length; i++) {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(notes[i].freq, now + i * 0.12);
+            
+            const volume = i === 3 ? 0.15 : 0.1;
+            gainNode.gain.setValueAtTime(volume, now + i * 0.12);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + notes[i].dur);
+            
+            oscillator.start(now + i * 0.12);
+            oscillator.stop(now + i * 0.12 + notes[i].dur);
+        }
+    } catch(e) {}
+}
+
+function playLoseSound() {
+    try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        const notes = [523, 523, 523, 440]; // Три раза До, потом Ля
+        
+        for (let i = 0; i < notes.length; i++) {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(notes[i], now + i * 0.12);
+            
+            gainNode.gain.setValueAtTime(0.07, now + i * 0.12);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.1);
+            
+            oscillator.start(now + i * 0.12);
+            oscillator.stop(now + i * 0.12 + 0.1);
+        }
+    } catch(e) {}
+}
+
 // --- Цвета ---
 const COLORS = [
     { id: 0, emoji: '🔴', name: 'Красный', hex: '#ff4444' },
@@ -993,6 +1047,7 @@ function checkLevelResult(won) {
     }
     
     if (isComplete) {
+	playWinSound();
         if (levelTimerInterval) {
             clearInterval(levelTimerInterval);
             levelTimerInterval = null;
@@ -1016,6 +1071,7 @@ function checkLevelResult(won) {
     
     if (level.type === 'collect' || level.type === 'moves') {
         if (moves <= 0) {
+		playLoseSound();
             if (levelTimerInterval) {
                 clearInterval(levelTimerInterval);
                 levelTimerInterval = null;
@@ -1044,6 +1100,7 @@ function checkLevelResult(won) {
     }
     
     if (level.type === 'time' && timeLeft <= 0 && score < level.goal) {
+	playLoseSound();
         if (levelTimerInterval) {
             clearInterval(levelTimerInterval);
             levelTimerInterval = null;

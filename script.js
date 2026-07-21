@@ -160,29 +160,20 @@ function initAudio() {
 function playMatchSound() {
     try {
         initAudio();
-        
         const now = audioCtx.currentTime;
         
-        // Две ноты для приятного звука удаления
-        const notes = [523, 659]; // До и Ми
-        for (let i = 0; i < notes.length; i++) {
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(notes[i], now + i * 0.08);
-            
-            gainNode.gain.setValueAtTime(0.12, now + i * 0.08);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.12);
-            
-            oscillator.start(now + i * 0.08);
-            oscillator.stop(now + i * 0.08 + 0.12);
-        }
-    } catch(e) {
-        // Если звук не работает — игнорируем
-    }
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, now);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        oscillator.start(now);
+        oscillator.stop(now + 0.1);
+    } catch(e) {}
 }
 
 // --- Цвета ---

@@ -148,9 +148,110 @@ const TARGET_FPS = 30;
 
 let soundEnabled = true;
 
+let bgMusicEnabled = true;
+const bgMusic = document.getElementById('bgMusic');
+
+// --- Пауза ---
+let isPaused = false;
+
 // --- Рекорды (сохраняются в localStorage) ---
 let bestScore = 0;
 let bestLevel = 0;
+
+
+// ============================================================
+// ФОНОВАЯ МУЗЫКА
+// ============================================================
+
+// Запуск фоновой музыки
+function startBackgroundMusic() {
+    if (bgMusic && bgMusicEnabled) {
+        bgMusic.volume = 0.02;
+        bgMusic.loop = true;
+        bgMusic.play().catch(e => {
+            console.log('⏸️ Музыка ожидает взаимодействия с пользователем');
+        });
+    }
+}
+
+// Включение/выключение фоновой музыки
+function toggleBackgroundMusic() {
+    bgMusicEnabled = !bgMusicEnabled;
+    const musicBtn = document.getElementById('musicBtn');
+    
+    if (bgMusicEnabled) {
+        musicBtn.textContent = '🎵';
+        musicBtn.classList.remove('muted');
+        bgMusic.play().catch(e => {});
+        console.log('🎵 Музыка включена');
+    } else {
+        musicBtn.textContent = '🔇';
+        musicBtn.classList.add('muted');
+        bgMusic.pause();
+        console.log('🔇 Музыка выключена');
+    }
+}
+
+// ============================================================
+// УПРАВЛЕНИЕ ПАУЗОЙ
+// ============================================================
+
+function togglePause() {
+    isPaused = !isPaused;
+    const pauseBtn = document.getElementById('pauseBtn');
+    const overlay = document.getElementById('gameOverlay');
+    const title = document.getElementById('overlayTitle');
+    const message = document.getElementById('overlayMessage');
+    const btn = document.getElementById('overlayBtn');
+    
+    if (isPaused) {
+        // Пауза включена
+        pauseBtn.textContent = '▶️';
+        pauseBtn.classList.add('active');
+        
+        // Показываем оверлей паузы
+        title.textContent = '⏸️ Пауза';
+        message.textContent = 'Игра приостановлена. Нажмите "Продолжить", чтобы вернуться.';
+        btn.textContent = '▶️ Продолжить';
+        btn.style.display = 'inline-block';
+        overlay.style.display = 'flex';
+        
+        // Останавливаем таймеры
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+        if (levelTimerInterval) {
+            clearInterval(levelTimerInterval);
+            levelTimerInterval = null;
+        }
+        
+        btn.onclick = function() {
+            togglePause();
+        };
+    } else {
+        // Пауза выключена
+        pauseBtn.textContent = '⏸️';
+        pauseBtn.classList.remove('active');
+        overlay.style.display = 'none';
+        
+        // Возобновляем таймеры
+        if (currentMode === 'levels' && currentLevel < LEVELS.length) {
+            const level = LEVELS[currentLevel];
+            if (level.type === 'time') {
+                startLevelTimer();
+            }
+        }
+    }
+}
+
+// Проверка, не на паузе ли игра
+function checkPause() {
+    if (isPaused) {
+        return true;
+    }
+    return false;
+}
 
 // ============================================================
 // 2.5 ЗВУК УДАЛЕНИЯ ФИГУР
@@ -970,6 +1071,13 @@ function showModal(title, messageText, buttonText, callback) {
 // 10. ВОЗВРАТ В МЕНЮ
 // ============================================================
 function goToMenu() {
+    if (isPaused) {
+        isPaused = false;
+        document.getElementById('pauseBtn').textContent = '⏸️';
+        document.getElementById('pauseBtn').classList.remove('active');
+        document.getElementById('gameOverlay').style.display = 'none';
+    }
+
     if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
@@ -989,6 +1097,7 @@ function goToMenu() {
     currentLevel = 0;
     collectedCount = 0;
     
+    document.getElementById('pauseBtn').style.display = 'none';
     document.getElementById('gameUI').style.display = 'none';
     document.getElementById('menuOverlay').style.display = 'flex';
     document.getElementById('shareBtn').style.display = 'none';
@@ -1012,6 +1121,7 @@ function startEndlessMode() {
     bombSpawnTimer = 0;
     isAnimating = false;
     collectedCount = 0;
+    isPaused = false;
     
     if (timerInterval) {
         clearInterval(timerInterval);
@@ -1022,6 +1132,7 @@ function startEndlessMode() {
         levelTimerInterval = null;
     }
     
+    document.getElementById('pauseBtn').style.display = 'none';
     document.getElementById('movesContainer').style.display = 'none';
     document.getElementById('timerContainer').style.display = 'none';
     document.getElementById('levelInfo').style.display = 'none';
@@ -1042,6 +1153,10 @@ function startLevelMode() {
     currentMode = 'levels';
     currentLevel = 0;
     collectedCount = 0;
+    isPaused = false; // ← сбрасываем паузу
+    document.getElementById('pauseBtn').style.display = 'block';
+    document.getElementById('pauseBtn').textContent = '⏸️';
+    document.getElementById('pauseBtn').classList.remove('active');
     document.getElementById('levelInfo').style.display = 'flex';
     document.getElementById('shareBtn').style.display = 'none';
     startLevel();
@@ -1237,6 +1352,7 @@ function checkLevelResult(won) {
 // 12. ОБРАБОТКА ИГРОВОГО ЦИКЛА
 // ============================================================
 function processBoardWithAnimation() {
+    if (isPaused) return;
     if (isProcessing) return;
     isProcessing = true;
     bombSpawned = null;
@@ -1468,6 +1584,7 @@ function handleTouch(e) {
 }
 
 function handleCellClick(x, y) {
+    if (isPaused) return;
     const col = Math.floor(x / TILE_SIZE);
     const row = Math.floor(y / TILE_SIZE);
     
@@ -1539,6 +1656,7 @@ function initGame() {
         document.getElementById('gameUI').style.display = 'block';
         startLevelMode();
     });
+
     
     document.getElementById('backBtn').addEventListener('click', function() {
         goToMenu();
@@ -1555,9 +1673,28 @@ function initGame() {
     document.getElementById('shareBtn').addEventListener('click', function() {
         shareResult();
     });
+   
+    document.getElementById('musicBtn').addEventListener('click', function() {
+    toggleBackgroundMusic();
+    });
+
+    // Инициализация звука и музыки после первого клика
+    document.addEventListener('click', function() {
+        initAudio();
+        startBackgroundMusic();
+    }, { once: true });
+
+    document.addEventListener('touchstart', function() {
+        initAudio();
+        startBackgroundMusic();
+    }, { once: true });	
 
     document.getElementById('soundBtn').addEventListener('click', function() {
         toggleSound();
+    });
+
+    document.getElementById('pauseBtn').addEventListener('click', function() {
+    togglePause();
     });
     
     canvas.addEventListener('click', handleClick);
